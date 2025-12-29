@@ -10,11 +10,7 @@ public class MusicController {
 
     private final MusicService service = new MusicService();
 
-    @GetMapping("/")
-    public String home() {
-        return "🔮 PRISMO está rodando!";
-    }
-
+    
     @GetMapping("/music")
     public Music getMusic() {
         return service.example();

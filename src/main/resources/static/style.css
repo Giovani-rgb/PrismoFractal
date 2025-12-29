@@ -1,0 +1,65 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Press Start 2P', monospace;
+}
+
+body {
+  height: 100vh;
+  background: radial-gradient(circle, #1a1b2e, #070711);
+  color: #eaeaea;
+}
+
+/* TELA INICIAL */
+.intro {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+/* LOGO */
+.prismo {
+  font-size: 50px;
+  letter-spacing: 6px;
+}
+
+.chunks {
+  font-size: 24px;
+  letter-spacing: 4px;
+  opacity: 0.8;
+}
+
+.subtitle {
+  font-size: 10px;
+  margin: 16px 0 40px;
+  opacity: 0.6;
+}
+
+/* MENU */
+.menu-item {
+  font-size: 12px;
+  padding: 10px 32px;
+  opacity: 0.7;
+}
+
+.menu-item.selected {
+  opacity: 1;
+}
+
+/* TEXTO PISCANDO */
+.footer {
+  position: absolute;
+  bottom: 24px;
+  font-size: 10px;
+  animation: blink 1.2s steps(2, start) infinite;
+}
+
+@keyframes blink {
+  to {
+    visibility: hidden;
+  }
+}
