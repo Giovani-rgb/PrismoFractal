@@ -1,0 +1,6 @@
+com/prismo/domain/Stanza.class
+com/prismo/PrismoApplication.class
+com/prismo/domain/Music.class
+com/prismo/domain/MusicPattern.class
+com/prismo/service/MusicService.class
+com/prismo/controller/MusicController.class
