@@ -13,7 +13,7 @@ export class GameMenu {
   items = [
     { label: 'START', action: () => this.go('/world') },
     { label: 'SONGS', action: () => this.go('/songs') },
-    { label: 'SETTINGS', action: () => console.log('settings') },
+    { label: 'SETTINGS', action: () => this.go('/settings') },
     { label: 'EXIT', action: () => console.log('exit') }
   ];
 

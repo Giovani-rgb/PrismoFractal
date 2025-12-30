@@ -1,16 +1,28 @@
+
+
+.menu {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 10px;
+  color: #fff;
+  text-align: left;
+}
+
 .menu-item {
   display: flex;
   align-items: center;
-  margin-bottom: 12px;
+  margin: 14px 0;
   opacity: 0.6;
   cursor: pointer;
-  transition: opacity 0.15s;
+  transition: opacity 0.15s, transform 0.15s;
 }
 
-.menu-item:hover {
-  opacity: 1;
-}
-
+.menu-item:hover,
 .menu-item.active {
   opacity: 1;
+  transform: translateX(4px);
 }
+
+.arrow {
+  margin-right: 8px;
+}
+

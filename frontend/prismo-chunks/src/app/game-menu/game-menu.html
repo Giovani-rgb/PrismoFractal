@@ -1,12 +1,14 @@
-<div class="menu">
-  <div
-    class="menu-item"
-    *ngFor="let item of items; let i = index"
-    [class.active]="i === selectedIndex"
-    (mouseenter)="selectedIndex = i"
-    (click)="select(i)"
-  >
-    <span class="arrow" *ngIf="i === selectedIndex">▶</span>
-    {{ item.label }}
+<div class="overlay">
+  <div class="menu">
+    <div
+      class="menu-item"
+      *ngFor="let item of items; let i = index"
+      [class.active]="i === selectedIndex"
+      (mouseenter)="selectedIndex = i"
+      (click)="select(i)"
+    >
+      <span class="arrow" *ngIf="i === selectedIndex">▶</span>
+      {{ item.label }}
+    </div>
   </div>
 </div>
