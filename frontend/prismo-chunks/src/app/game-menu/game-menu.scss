@@ -1,0 +1,16 @@
+.menu-item {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+  opacity: 0.6;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.menu-item:hover {
+  opacity: 1;
+}
+
+.menu-item.active {
+  opacity: 1;
+}
