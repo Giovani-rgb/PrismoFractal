@@ -68,6 +68,7 @@
               "buildTarget": "prismo-chunks:build:production"
             },
             "development": {
+              "allowedHosts": ["*"],
               "buildTarget": "prismo-chunks:build:development"
             }
           },
@@ -80,3 +81,4 @@
     }
   }
 }
+allowedHosts: true

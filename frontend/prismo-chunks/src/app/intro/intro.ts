@@ -1,6 +1,7 @@
-import { Component, HostListener } from '@angular/core';
+import { Component, HostListener, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { GameMenu } from '../game-menu/game-menu';
+import { SessionService } from '../services/session.service';
 
 @Component({
   selector: 'app-intro',
@@ -9,18 +10,22 @@ import { GameMenu } from '../game-menu/game-menu';
   styleUrl: './intro.scss',
 })
 export class Intro {
-  constructor(private router: Router) {}
-private authenticate() {
-    console.log('aqui vai a função de autenticação');
-}
-  @HostListener('window:keydown.enter')
-    onEnterKey() {
-      this.authenticate();
-    }
+  router = inject(Router);
+  sessionService = inject(SessionService);
 
-    onPressEnterClick() {
-      this.authenticate();
-    }
+  private authenticate() {
+    this.sessionService.initializeSession();
+    this.router.navigate(['/dashboard']);
+  }
+
+  @HostListener('window:keydown.enter')
+  onEnterKey() {
+    this.authenticate();
+  }
+
+  onPressEnterClick() {
+    this.authenticate();
+  }
 }
 
 

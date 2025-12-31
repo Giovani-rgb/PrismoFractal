@@ -1,0 +1,285 @@
+$primary-color: #00d9ff;
+$secondary-color: #7c3aed;
+$bg-dark: #0a0e27;
+$bg-card: #1a1f3a;
+$text-light: #e0e7ff;
+$text-muted: #a0aec0;
+$border-color: #2d3748;
+
+.dashboard {
+  min-height: 100vh;
+  background: $bg-dark;
+  color: $text-light;
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboard-header {
+  background: linear-gradient(135deg, $bg-card 0%, rgba(124, 58, 237, 0.1) 100%);
+  border-bottom: 1px solid $border-color;
+  padding: 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2rem;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+.header-content {
+  flex: 1;
+
+  h1 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin: 0;
+    background: linear-gradient(90deg, $primary-color, $secondary-color);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .subtitle {
+    font-size: 0.95rem;
+    color: $text-muted;
+    margin: 0.5rem 0 0 0;
+  }
+}
+
+.main-nav {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+
+  .nav-link {
+    padding: 0.75rem 1.5rem;
+    background: rgba(124, 58, 237, 0.2);
+    border: 1px solid $border-color;
+    border-radius: 0.5rem;
+    color: $text-light;
+    text-decoration: none;
+    font-size: 0.95rem;
+    transition: all 0.3s ease;
+
+    &:hover {
+      background: rgba(0, 217, 255, 0.2);
+      border-color: $primary-color;
+      color: $primary-color;
+    }
+  }
+}
+
+.dashboard-content {
+  flex: 1;
+  padding: 2rem;
+
+  @media (max-width: 768px) {
+    padding: 1rem;
+  }
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 2rem;
+  margin-bottom: 3rem;
+
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+}
+
+.card {
+  background: $bg-card;
+  border: 1px solid $border-color;
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  transition: all 0.3s ease;
+
+  &:hover {
+    border-color: $primary-color;
+    box-shadow: 0 0 20px rgba(0, 217, 255, 0.1);
+  }
+
+  .card-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: 0 0 1.5rem 0;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid $border-color;
+  }
+}
+
+.card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+
+  label {
+    font-size: 0.85rem;
+    color: $text-muted;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+  }
+
+  p {
+    font-size: 0.95rem;
+    color: $text-light;
+    margin: 0;
+    line-height: 1.5;
+  }
+
+  &.compact {
+    p {
+      font-size: 1.2rem;
+      color: $primary-color;
+    }
+  }
+}
+
+.info-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.btn {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-decoration: none;
+  display: inline-block;
+  text-align: center;
+
+  &.btn-primary {
+    background: linear-gradient(90deg, $primary-color, $secondary-color);
+    color: $bg-dark;
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(0, 217, 255, 0.3);
+    }
+  }
+
+  &.btn-secondary {
+    background: rgba(124, 58, 237, 0.2);
+    border: 1px solid $border-color;
+    color: $text-light;
+
+    &:hover {
+      background: rgba(0, 217, 255, 0.2);
+      border-color: $primary-color;
+      color: $primary-color;
+    }
+  }
+}
+
+.arrangement-section {
+  background: $bg-card;
+  border: 1px solid $border-color;
+  border-radius: 0.75rem;
+  padding: 2rem;
+
+  @media (max-width: 768px) {
+    padding: 1.5rem;
+  }
+}
+
+.section-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0 0 1.5rem 0;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid $border-color;
+}
+
+.arrangement-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.stanza-block {
+  background: rgba(0, 217, 255, 0.05);
+  border-left: 3px solid $secondary-color;
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+}
+
+.stanza-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: $primary-color;
+  margin: 0 0 1rem 0;
+}
+
+.phrases-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.phrase-card {
+  background: rgba(124, 58, 237, 0.1);
+  border: 1px solid $border-color;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  transition: all 0.3s ease;
+
+  &:hover {
+    background: rgba(124, 58, 237, 0.2);
+    border-color: $primary-color;
+  }
+
+  .phrase-order {
+    background: $primary-color;
+    color: $bg-dark;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    flex-shrink: 0;
+    font-size: 0.85rem;
+  }
+
+  .phrase-text {
+    margin: 0;
+    font-size: 0.9rem;
+    color: $text-light;
+    line-height: 1.4;
+  }
+}
+
+.arrangement-actions {
+  display: flex;
+  justify-content: center;
+  padding-top: 1rem;
+  border-top: 1px solid $border-color;
+}

@@ -1,5 +1,7 @@
-import { Component, signal } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
+import { Component, effect, inject } from '@angular/core';
+import { RouterOutlet, Router } from '@angular/router';
+import { SessionService } from './services/session.service';
+import { ProjectService } from './services/project.service';
 
 @Component({
   selector: 'app-root',
@@ -8,5 +10,16 @@ import { RouterOutlet } from '@angular/router';
   styleUrl: './app.scss'
 })
 export class App {
-  protected readonly title = signal('prismo-chunks');
+  sessionService = inject(SessionService);
+  projectService = inject(ProjectService);
+  router = inject(Router);
+
+  constructor() {
+    effect(() => {
+      const session = this.sessionService.session();
+      if (session && this.router.url === '/') {
+        this.router.navigate(['/dashboard']);
+      }
+    });
+  }
 }

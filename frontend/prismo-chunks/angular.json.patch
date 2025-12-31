@@ -1,0 +1,13 @@
+--- a/angular.json
++++ b/angular.json
+@@ -60,6 +60,10 @@
+           "builder": "@angular/build:dev-server",
+           "configurations": {
+             "development": {
++              "browserTarget": "prismo-chunks:build:development",
++              "allowedHosts": [
++                "*"
++              ],
+               "buildTarget": "prismo-chunks:build:development"
+             },
+             "production": {

@@ -5,9 +5,11 @@ import { Songs } from './songs/songs';
 import { Settings } from './settings/settings';
 import { Landing } from './landing/landing';
 import { MelodyDna } from './melody-dna/melody-dna';
+import { Dashboard } from './dashboard/dashboard';
 
 export const routes: Routes = [
   { path: '', component: Intro },
+  { path: 'dashboard', component: Dashboard },
   { path: 'world', component: World },
   { path: 'songs', component: Songs },
   { path: 'settings', component: Settings },
