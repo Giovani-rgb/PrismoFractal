@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, ViewChild, ElementRef, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
@@ -13,15 +13,21 @@ type NoteBlock = {
   length: 'long' | 'medium' | 'short';
 };
 
+type NoteLength = 'short' | 'medium' | 'long';
+
+type RhythmNote = {
+  length: NoteLength;
+};
+
 @Component({
   selector: 'app-melody-dna',
   imports: [CommonModule, FormsModule],
   templateUrl: './melody-dna.html',
   styleUrl: './melody-dna.scss',
 })
-export class MelodyDna {
+export class MelodyDna implements AfterViewInit {
 
- step = 1;
+  step = 1;
 
   /* ==========================
      DNA STATE
@@ -72,14 +78,12 @@ export class MelodyDna {
   /* ==========================
      STEP 4 — CHORD FRAME
   ========================== */
-  type NoteLength = 'short' | 'medium' | 'long';
-
-  type RhythmNote = {
-    length: NoteLength;
-  };
-
+  
   chord: RhythmNote[] = [
-    { length: 'long' } // root
+    { length: 'long' }, // root
+    { length: 'medium' },
+    { length: 'short' },
+    { length: 'short' }
   ];
 
   selectedNoteIndex = 0;
@@ -87,41 +91,87 @@ export class MelodyDna {
   addNote() {
     this.chord.push({ length: 'short' });
     this.selectedNoteIndex = this.chord.length - 1;
+    this.drawChord();
   }
 
   removeNote() {
     if (this.selectedNoteIndex === 0) return;
     this.chord.splice(this.selectedNoteIndex, 1);
     this.selectedNoteIndex = 0;
+    this.drawChord();
   }
 
   setLength(length: NoteLength) {
     this.chord[this.selectedNoteIndex].length = length;
+    this.drawChord();
   }
-@ViewChild('chordCanvas', { static: false })
-canvas!: ElementRef<HTMLCanvasElement>;
+  
+  selectNote(index: number) {
+    this.selectedNoteIndex = index;
+    this.drawChord();
+  }
 
-ngAfterViewInit() {
-  this.drawChord();
-}
+  @ViewChild('chordCanvas', { static: false })
+  canvas!: ElementRef<HTMLCanvasElement>;
 
-drawChord() {
-  const ctx = this.canvas.nativeElement.getContext('2d')!;
-  ctx.clearRect(0, 0, 600, 80);
+  ngAfterViewInit() {
+    this.drawChord();
+  }
 
-  let x = 10;
+  drawChord() {
+    if (!this.canvas) return;
+    
+    const ctx = this.canvas.nativeElement.getContext('2d')!;
+    ctx.clearRect(0, 0, 600, 80);
 
-  this.chord.forEach((note, index) => {
-    const width =
-      note.length === 'long' ? 160 :
-      note.length === 'medium' ? 100 : 60;
+    let x = 10;
 
-    ctx.fillStyle = index === this.selectedNoteIndex ? '#0ff' : '#555';
-    ctx.fillRect(x, 20, width, 40);
+    this.chord.forEach((note, index) => {
+      const width =
+        note.length === 'long' ? 160 :
+        note.length === 'medium' ? 100 : 60;
 
-    x += width + 10;
-  });
-}
+      ctx.fillStyle = index === this.selectedNoteIndex ? '#0ff' : '#555';
+      ctx.fillRect(x, 20, width, 40);
+      
+      // Draw border
+      ctx.strokeStyle = index === this.selectedNoteIndex ? '#00ffff' : '#888';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x, 20, width, 40);
+      
+      // Draw text label
+      ctx.fillStyle = '#fff';
+      ctx.font = '12px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const label = note.length === 'long' ? '█' : note.length === 'medium' ? '██' : '▓';
+      ctx.fillText(label, x + width / 2, 40);
+
+      x += width + 10;
+    });
+  }
+  
+  onCanvasClick(event: MouseEvent) {
+    if (!this.canvas) return;
+    
+    const rect = this.canvas.nativeElement.getBoundingClientRect();
+    const clickX = event.clientX - rect.left;
+    
+    let x = 10;
+    
+    for (let i = 0; i < this.chord.length; i++) {
+      const width =
+        this.chord[i].length === 'long' ? 160 :
+        this.chord[i].length === 'medium' ? 100 : 60;
+      
+      if (clickX >= x && clickX <= x + width) {
+        this.selectNote(i);
+        return;
+      }
+      
+      x += width + 10;
+    }
+  }
 
   /* ==========================
      NAVIGATION
@@ -142,8 +192,3 @@ drawChord() {
     });
   }
 }
-
-
-
-
-
