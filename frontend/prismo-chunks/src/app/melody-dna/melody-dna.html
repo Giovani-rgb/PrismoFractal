@@ -2,30 +2,26 @@
 
   <h1>MELODY DNA</h1>
 
-  <!-- STEP 1 -->
-  <div *ngIf="step === 1" class="step">
+  <!-- STEP 1 — IDEOLOGY CAROUSEL -->
+  <div *ngIf="step === 1" class="step ideology">
     <p>1. Musical Ideology</p>
 
-    <button (click)="dna.ideology='simple'">Simple</button>
-    <button (click)="dna.ideology='hybrid'">Hybrid</button>
-    <button (click)="dna.ideology='triplet'">Triplet</button>
+    <div class="carousel">
+      <button (click)="prevIdeology()">◀</button>
+
+      <div class="card">
+        <h2>{{ ideologies[ideologyIndex].label }}</h2>
+        <p>{{ ideologies[ideologyIndex].description }}</p>
+      </div>
+
+      <button (click)="nextIdeology()">▶</button>
+    </div>
   </div>
 
-  <!-- STEP 2 -->
+  <!-- STEP 2 — READ ONLY -->
   <div *ngIf="step === 2" class="step">
     <p>2. Time Signature</p>
-
-    <label>
-      <input type="checkbox" [(ngModel)]="dna.hasTimeSignature" />
-      I already know the time signature
-    </label>
-
-    <select *ngIf="dna.hasTimeSignature" [(ngModel)]="dna.timeSignature">
-      <option>4/4</option>
-      <option>6/8</option>
-      <option>7/8</option>
-      <option>12/8</option>
-    </select>
+    <p class="locked">Defined in World settings</p>
   </div>
 
   <!-- STEP 3 -->
@@ -41,23 +37,34 @@
       <option>Experimental</option>
     </select>
   </div>
-
-  <!-- STEP 4 -->
+  
+  <!-- STEP 4 — CHORD FRAME -->
   <div *ngIf="step === 4" class="step">
     <p>4. Harmony Base</p>
 
-    <input
-      placeholder="Root Note (ex: C, D#, F)"
-      [(ngModel)]="dna.rootNote"
-    />
+    <!-- FRAME -->
+    <canvas
+      #chordCanvas
+      width="600"
+      height="80"
+      class="chord-frame">
+    </canvas>
 
-    <div class="notes">
-      <span (click)="toggleWeakNote('2nd')">2nd</span>
-      <span (click)="toggleWeakNote('4th')">4th</span>
-      <span (click)="toggleWeakNote('6th')">6th</span>
-      <span (click)="toggleWeakNote('chromatic')">Chromatic</span>
+    <!-- HUD -->
+    <div class="hud">
+      <div class="note-controls">
+        <button (click)="addNote()">+ NOTE</button>
+        <button (click)="removeNote()">- NOTE</button>
+      </div>
+
+      <div class="size-controls">
+        <button (click)="setLength('short')">■</button>
+        <button (click)="setLength('medium')">■■</button>
+        <button (click)="setLength('long')">■■■</button>
+      </div>
     </div>
   </div>
+
 
   <!-- STEP 5 -->
   <div *ngIf="step === 5" class="step">
@@ -68,6 +75,7 @@
     <button (click)="dna.syncopation='high'">High</button>
   </div>
 
+  <!-- CONTROLS -->
   <div class="controls">
     <button (click)="back()" [disabled]="step===1">BACK</button>
     <button *ngIf="step<5" (click)="next()">NEXT</button>
@@ -75,4 +83,3 @@
   </div>
 
 </div>
-

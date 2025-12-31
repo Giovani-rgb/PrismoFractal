@@ -59,6 +59,9 @@
         "serve": {
           "builder": "@angular/build:dev-server",
           "options": {
+            "allowedHosts": 
+       ["f039b9d2-7940-4b9a-8f3f-5050e56ae48b-00-3ipfqo8asriza.worf.replit.dev"],
+    
             "port": 5000
           },
           "configurations": {
@@ -66,7 +69,7 @@
               "buildTarget": "prismo-chunks:build:production"
             },
             "development": {
-              "allowedHosts": ["*"],
+              "allowedHosts": ["f039b9d2-7940-4b9a-8f3f-5050e56ae48b-00-3ipfqo8asriza.worf.replit.dev"],
               "buildTarget": "prismo-chunks:build:development"
             }
           },
@@ -79,3 +82,4 @@
     }
   }
 }
+allowedHosts: true
