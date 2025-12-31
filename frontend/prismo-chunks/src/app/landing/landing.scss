@@ -1,0 +1,22 @@
+.landing {
+  height: 100vh;
+  background: linear-gradient(#111, #05050f);
+  color: #fff;
+  font-family: 'Press Start 2P', monospace;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
+button {
+  margin-top: 24px;
+  padding: 12px 24px;
+  font-family: inherit;
+  font-size: 10px;
+  background: transparent;
+  border: 1px solid #fff;
+  color: #fff;
+  cursor: pointer;
+}

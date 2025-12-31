@@ -10,9 +10,17 @@ import { GameMenu } from '../game-menu/game-menu';
 })
 export class Intro {
   constructor(private router: Router) {}
-
-  @HostListener('window:keydown.enter')
-  enterGame() {
-    this.router.navigate(['/world']);
-  }
+private authenticate() {
+    console.log('aqui vai a função de autenticação');
 }
+  @HostListener('window:keydown.enter')
+    onEnterKey() {
+      this.authenticate();
+    }
+
+    onPressEnterClick() {
+      this.authenticate();
+    }
+}
+
+

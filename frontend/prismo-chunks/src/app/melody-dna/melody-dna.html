@@ -1,0 +1,78 @@
+<div class="dna">
+
+  <h1>MELODY DNA</h1>
+
+  <!-- STEP 1 -->
+  <div *ngIf="step === 1" class="step">
+    <p>1. Musical Ideology</p>
+
+    <button (click)="dna.ideology='simple'">Simple</button>
+    <button (click)="dna.ideology='hybrid'">Hybrid</button>
+    <button (click)="dna.ideology='triplet'">Triplet</button>
+  </div>
+
+  <!-- STEP 2 -->
+  <div *ngIf="step === 2" class="step">
+    <p>2. Time Signature</p>
+
+    <label>
+      <input type="checkbox" [(ngModel)]="dna.hasTimeSignature" />
+      I already know the time signature
+    </label>
+
+    <select *ngIf="dna.hasTimeSignature" [(ngModel)]="dna.timeSignature">
+      <option>4/4</option>
+      <option>6/8</option>
+      <option>7/8</option>
+      <option>12/8</option>
+    </select>
+  </div>
+
+  <!-- STEP 3 -->
+  <div *ngIf="step === 3" class="step">
+    <p>3. Target Style</p>
+
+    <select [(ngModel)]="dna.style">
+      <option>Rock</option>
+      <option>Pop</option>
+      <option>Glam</option>
+      <option>Metal</option>
+      <option>Indie</option>
+      <option>Experimental</option>
+    </select>
+  </div>
+
+  <!-- STEP 4 -->
+  <div *ngIf="step === 4" class="step">
+    <p>4. Harmony Base</p>
+
+    <input
+      placeholder="Root Note (ex: C, D#, F)"
+      [(ngModel)]="dna.rootNote"
+    />
+
+    <div class="notes">
+      <span (click)="toggleWeakNote('2nd')">2nd</span>
+      <span (click)="toggleWeakNote('4th')">4th</span>
+      <span (click)="toggleWeakNote('6th')">6th</span>
+      <span (click)="toggleWeakNote('chromatic')">Chromatic</span>
+    </div>
+  </div>
+
+  <!-- STEP 5 -->
+  <div *ngIf="step === 5" class="step">
+    <p>5. Syncopation Level</p>
+
+    <button (click)="dna.syncopation='low'">Low</button>
+    <button (click)="dna.syncopation='medium'">Medium</button>
+    <button (click)="dna.syncopation='high'">High</button>
+  </div>
+
+  <div class="controls">
+    <button (click)="back()" [disabled]="step===1">BACK</button>
+    <button *ngIf="step<5" (click)="next()">NEXT</button>
+    <button *ngIf="step===5" (click)="finish()">CONFIRM DNA</button>
+  </div>
+
+</div>
+

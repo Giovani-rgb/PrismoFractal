@@ -15,6 +15,13 @@
   letter-spacing: 6px;
 }
 
+.no-select {
+  user-select: none;
+  -webkit-user-select: none;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
 .chunks {
   font-size: 24px;
   letter-spacing: 4px;

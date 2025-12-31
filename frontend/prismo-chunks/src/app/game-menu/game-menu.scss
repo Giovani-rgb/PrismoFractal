@@ -16,6 +16,13 @@
   transition: opacity 0.15s, transform 0.15s;
 }
 
+.no-select {
+  user-select: none;
+  -webkit-user-select: none;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
 .menu-item:hover,
 .menu-item.active {
   opacity: 1;

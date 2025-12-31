@@ -14,7 +14,7 @@ export class GameMenu {
     { label: 'START', action: () => this.go('/world') },
     { label: 'SONGS', action: () => this.go('/songs') },
     { label: 'SETTINGS', action: () => this.go('/settings') },
-    { label: 'EXIT', action: () => console.log('exit') }
+    { label: 'EXIT', action: () => this.go('/landing') }
   ];
 
   selectedIndex = 0;

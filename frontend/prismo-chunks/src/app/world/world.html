@@ -1,7 +1,76 @@
 <div class="world">
-  <div class="hud">
-    PRISMO WORLD
+
+  <h1>CREATE WORLD</h1>
+
+  <!-- STEP 1 -->
+  <div *ngIf="step === 1" class="step">
+    <p>1. Project Name</p>
+    <input
+      [(ngModel)]="world.name"
+      placeholder="My Song World"
+    />
   </div>
-  
+
+  <!-- STEP 2 -->
+  <div *ngIf="step === 2" class="step">
+    <p>2. Structure Template</p>
+
+    <select [(ngModel)]="world.template">
+      <option value="">Select template</option>
+      <option value="basic">Chorus / Versus / Bridge</option>
+      <option value="simple">Versus / Chorus</option>
+      <option value="free">Free Structure</option>
+    </select>
+  </div>
+
+  <!-- STEP 3 -->
+  <div *ngIf="step === 3" class="step">
+    <p>3. Seed (Lyrics Structure)</p>
+
+    <textarea
+      [(ngModel)]="world.seed"
+      rows="18"
+      placeholder="Lyrics structure will appear here..."
+    ></textarea>
+  </div>
+
+  <!-- STEP 4 -->
+  <div *ngIf="step === 4" class="step">
+    <p>4. BPM (60 - 190)</p>
+
+    <input
+      type="number"
+      min="60"
+      max="190"
+      [(ngModel)]="world.bpm"
+    />
+  </div>
+
+  <!-- STEP 5 -->
+  <div *ngIf="step === 5" class="step">
+    <p>5. Time Signature</p>
+
+    <select [(ngModel)]="world.timeSignature">
+      <option>4/4</option>
+      <option>5/6</option>
+      <option>7/8</option>
+    </select>
+  </div>
+
+  <!-- CONTROLS -->
+  <div class="controls">
+    <button (click)="back()" [disabled]="step === 1">
+      BACK
+    </button>
+
+    <button *ngIf="step < 5" (click)="next()">
+      NEXT
+    </button>
+
+    <button *ngIf="step === 5" (click)="createWorld()">
+      CREATE WORLD
+    </button>
+  </div>
+
 </div>
 

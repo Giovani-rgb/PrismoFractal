@@ -1,0 +1,28 @@
+.dna {
+  max-width: 600px;
+  margin: auto;
+  padding: 24px;
+  background: rgba(0,0,0,0.75);
+  color: #0ff;
+  font-family: 'Press Start 2P', monospace;
+}
+
+.step {
+  margin-bottom: 20px;
+}
+
+button, select, input {
+  margin: 6px 0;
+  padding: 10px;
+  background: #111;
+  border: 1px solid #0ff;
+  color: #0ff;
+  cursor: pointer;
+}
+
+.notes span {
+  margin-right: 10px;
+  cursor: pointer;
+  padding: 6px;
+  border: 1px dashed #0ff;
+}
