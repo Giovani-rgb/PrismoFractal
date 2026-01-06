@@ -15,7 +15,7 @@ export class App {
   private router = inject(Router);
 
   constructor() {
-    this.sessionService.getOrCreate().subscribe({
+    this.sessionService.read().subscribe({
       next: session => {
         console.log('[SESSION]', session);
 

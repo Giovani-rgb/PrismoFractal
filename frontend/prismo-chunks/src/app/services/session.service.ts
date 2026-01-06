@@ -18,7 +18,7 @@ export class SessionService {
   constructor(private http: HttpClient) {}
 
   // 1️⃣ Lê a sessão
-  read(): Observable<Session> {
+  read(): Observable<Session | null> {
     const stored = this.loadFromSessionStorage();
 
     if (stored) {
@@ -27,6 +27,10 @@ export class SessionService {
 
     const cookieSessionId = this.readCookie('SESSION_ID');
 
+    if (!cookieSessionId) {
+      return of(null);
+    }
+
     return this.http.post<Session>(
       `${this.API}/read`,
       { sessionId: cookieSessionId }
@@ -34,6 +38,7 @@ export class SessionService {
       tap(session => this.save(session))
     );
   }
+
 
   // 2️⃣ Cria sessão (POST sem body)
   create(): Observable<Session> {

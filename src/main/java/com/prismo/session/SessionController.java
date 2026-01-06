@@ -25,9 +25,20 @@ public class SessionController {
     }
 
     @PostMapping("/read")
-    public SessionResponse read(@RequestBody ReadSessionRequest body) {
+    public SessionResponse read(
+        @RequestBody(required = false) ReadSessionRequest body
+    ) {
+        if (body == null || body.sessionId() == null) {
+            //ResponseStatusException cannot be resolved to a type (Java). E HttpStatus cannot be resolved to a variable (Java)
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "sessionId é obrigatório"
+            );
+        }
+
         return SessionMapper.toResponse(
             service.get(body.sessionId())
         );
     }
+
 }
