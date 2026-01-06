@@ -100,30 +100,9 @@ waitForPort = 8080
 outputType = "console"
 
 [[workflows.workflow]]
-name = "Run Angular 20"
-mode = "parallel"
-author = 33948668
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd frontend/prismo-chunks"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "npm run serve"
-
-[[workflows.workflow]]
-name = "Star Angular App ng Server"
-mode = "sequential"
-author = 33948668
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Run Angular 20"
-
-[[workflows.workflow]]
 name = "Run Angular Dev Server"
 author = "agent"
+mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"

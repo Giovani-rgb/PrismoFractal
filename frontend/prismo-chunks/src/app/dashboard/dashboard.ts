@@ -14,14 +14,15 @@ import { SessionService } from '../services/session.service';
 export class Dashboard {
   projectService = inject(ProjectService);
   sessionService = inject(SessionService);
+  worldOpen = true;
+  dnaOpen = false;
+
 
   get project() {
     return this.projectService.project();
   }
 
-  get session() {
-    return this.sessionService.session();
-  }
+  
 
   get stanzas() {
     if (!this.project) return [];

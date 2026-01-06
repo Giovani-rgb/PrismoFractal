@@ -14,7 +14,7 @@ export class Intro {
   sessionService = inject(SessionService);
 
   private authenticate() {
-    this.sessionService.initializeSession();
+    
     this.router.navigate(['/dashboard']);
   }
 

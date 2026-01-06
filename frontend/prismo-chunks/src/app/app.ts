@@ -1,4 +1,4 @@
-import { Component, effect, inject } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { RouterOutlet, Router } from '@angular/router';
 import { SessionService } from './services/session.service';
 import { ProjectService } from './services/project.service';
@@ -10,15 +10,21 @@ import { ProjectService } from './services/project.service';
   styleUrl: './app.scss'
 })
 export class App {
-  sessionService = inject(SessionService);
-  projectService = inject(ProjectService);
-  router = inject(Router);
+  private sessionService = inject(SessionService);
+  private projectService = inject(ProjectService);
+  private router = inject(Router);
 
   constructor() {
-    effect(() => {
-      const session = this.sessionService.session();
-      if (session && this.router.url === '/') {
-        this.router.navigate(['/dashboard']);
+    this.sessionService.getOrCreate().subscribe({
+      next: session => {
+        console.log('[SESSION]', session);
+
+        if (this.router.url === '/') {
+          this.router.navigate(['/landing']);
+        }
+      },
+      error: err => {
+        console.error('Erro ao inicializar sessão', err);
       }
     });
   }

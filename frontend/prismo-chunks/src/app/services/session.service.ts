@@ -1,56 +1,73 @@
-import { Injectable, signal } from '@angular/core';
+
+import { Injectable } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Observable, of, switchMap, tap } from 'rxjs';
 
 export interface Session {
   id: string;
-  projectName: string;
+  status: 'ACTIVE' | 'CLOSED' | 'EXPIRED';
   createdAt: number;
 }
 
-@Injectable({
-  providedIn: 'root'
-})
+@Injectable({ providedIn: 'root' })
 export class SessionService {
-  private sessionSignal = signal<Session | null>(this.loadSession());
 
-  session = this.sessionSignal.asReadonly();
+  private readonly STORAGE_KEY = 'prismo_session';
+  private readonly API = '/api/sessions';
 
-  constructor() {
-    this.initializeSession();
-  }
+  constructor(private http: HttpClient) {}
 
-  private loadSession(): Session | null {
-    if (typeof localStorage === 'undefined') return null;
-    const stored = localStorage.getItem('prismo_session');
-    return stored ? JSON.parse(stored) : null;
-  }
+  // 1️⃣ Lê a sessão
+  read(): Observable<Session> {
+    const stored = this.loadFromSessionStorage();
 
-  initializeSession(): void {
-    const existing = this.sessionSignal();
-    if (!existing) {
-      const session: Session = {
-        id: this.generateSessionId(),
-        projectName: 'Meu Projeto',
-        createdAt: Date.now()
-      };
-      this.setSession(session);
+    if (stored) {
+      return of(stored);
     }
+
+    const cookieSessionId = this.readCookie('SESSION_ID');
+
+    return this.http.post<Session>(
+      `${this.API}/read`,
+      { sessionId: cookieSessionId }
+    ).pipe(
+      tap(session => this.save(session))
+    );
   }
 
-  setSession(session: Session): void {
-    localStorage.setItem('prismo_session', JSON.stringify(session));
-    this.sessionSignal.set(session);
+  // 2️⃣ Cria sessão (POST sem body)
+  create(): Observable<Session> {
+    return this.http.post<Session>(this.API, {}).pipe(
+      tap(session => this.save(session))
+    );
   }
 
-  clearSession(): void {
-    localStorage.removeItem('prismo_session');
-    this.sessionSignal.set(null);
+  // 3️⃣ Read-or-create (orquestração)
+  getOrCreate(): Observable<Session> {
+    return this.read().pipe(
+      switchMap(session =>
+        session ? of(session) : this.create()
+      )
+    );
   }
 
-  isActive(): boolean {
-    return this.sessionSignal() !== null;
+  // -----------------------
+  // helpers
+  // -----------------------
+
+  private loadFromSessionStorage(): Session | null {
+    const raw = sessionStorage.getItem(this.STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
   }
 
-  private generateSessionId(): string {
-    return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  private save(session: Session): void {
+    sessionStorage.setItem(this.STORAGE_KEY, JSON.stringify(session));
+  }
+
+  private readCookie(name: string): string | null {
+    const match = document.cookie
+      .split('; ')
+      .find(row => row.startsWith(name + '='));
+    return match ? match.split('=')[1] : null;
   }
 }

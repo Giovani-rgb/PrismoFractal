@@ -1,31 +1,46 @@
 <div class="dashboard">
+
+  <!-- HEADER -->
   <header class="dashboard-header">
-    <div class="header-content">
-      <h1>{{ session?.projectName || 'PRISMO' }}</h1>
-      <p class="subtitle">Editor Criativo de Composições Musicais</p>
-    </div>
-    <nav class="main-nav">
-      <a routerLink="/world" class="nav-link">Mundo</a>
-      <a routerLink="/melody-dna" class="nav-link">DNA Melódico</a>
-      <a routerLink="/songs" class="nav-link">Canções</a>
-      <a routerLink="/settings" class="nav-link">Configurações</a>
-    </nav>
+    <h2 class="dashboard-title">Dashboard</h2>
+    <p class="dashboard-subtitle">Editor</p>
   </header>
 
-  <main class="dashboard-content">
-    <div class="dashboard-grid">
-      <!-- World Card -->
-      <section class="card world-card">
-        <h2 class="card-title">🌍 Mundo</h2>
-        <div class="card-body">
+  <!-- BODY -->
+  <div class="dashboard-body">
+
+    <!-- ============ SIDEBAR ============ -->
+    <aside class="sidebar">
+
+      <!-- WORLD -->
+      <section class="sidebar-group">
+        
+<button
+  class="sidebar-toggle"
+  (click)="worldOpen = !worldOpen"
+>
+  🌍 Mundo
+  <span class="chevron">
+    {{ worldOpen ? '▾' : '▸' }}
+  </span>
+</button>
+
+        
+        
+        <div
+          class="sidebar-content"
+          *ngIf="worldOpen"
+        >
           <div class="info-item">
             <label>Nome</label>
             <p>{{ project.world.name }}</p>
           </div>
+
           <div class="info-item">
             <label>Estrutura</label>
             <p>{{ project.world.structure }}</p>
           </div>
+
           <div class="info-row">
             <div class="info-item compact">
               <label>BPM</label>
@@ -36,52 +51,85 @@
               <p>{{ project.world.timeSignature }}</p>
             </div>
           </div>
-          <a routerLink="/world" class="btn btn-secondary">Ver Detalhes</a>
         </div>
+
+        
       </section>
 
-      <!-- Melody DNA Card -->
-      <section class="card dna-card">
-        <h2 class="card-title">🧬 DNA Melódico</h2>
-        <div class="card-body">
+      <!-- DNA -->
+      <section class="sidebar-group">
+        <button
+  class="sidebar-toggle"
+  (click)="dnaOpen = !dnaOpen"
+>
+  🧬 DNA Melódico
+  <span class="chevron">
+    {{ dnaOpen ? '▾' : '▸' }}
+  </span>
+</button>
+
+
+        <div class="sidebar-content"
+          *ngIf="dnaOpen">
           <div class="info-item">
             <label>Ideologia</label>
             <p>{{ project.melodyDna.ideology }}</p>
           </div>
+
           <div class="info-item">
             <label>Ritmo</label>
             <p>{{ project.melodyDna.rhythm }}</p>
           </div>
+
           <div class="info-item">
             <label>Harmonia Base</label>
             <p>{{ project.melodyDna.harmonyBase }}</p>
           </div>
+
           <div class="info-item">
             <label>Tonalidade</label>
             <p>{{ project.melodyDna.keySignature }}</p>
           </div>
-          <a routerLink="/melody-dna" class="btn btn-secondary">Ver Detalhes</a>
         </div>
       </section>
-    </div>
 
-    <!-- Arrangement Visualization -->
-    <section class="arrangement-section">
-      <h2 class="section-title">🎵 Arranjo Frasal</h2>
-      <div class="arrangement-container">
-        <div *ngFor="let stanza of stanzas" class="stanza-block">
-          <h3 class="stanza-title">Estrofe {{ stanza }}</h3>
-          <div class="phrases-group">
-            <div *ngFor="let phrase of getPhrasesForStanza(stanza)" class="phrase-card">
-              <span class="phrase-order">{{ phrase.order }}</span>
-              <p class="phrase-text">{{ phrase.text }}</p>
+    </aside>
+
+    <!-- ============ CHUNKS AREA ============ -->
+    <main class="chunks-area">
+
+      <header class="chunks-header">
+        <h3>🎵 Chunks</h3>
+      </header>
+
+      <div class="chunks-container">
+
+        <div
+          *ngFor="let stanza of stanzas"
+          class="chunk"
+        >
+          <h4 class="chunk-title">
+            Estrofe {{ stanza }}
+          </h4>
+
+          <div class="chunk-content">
+            <div
+              *ngFor="let phrase of getPhrasesForStanza(stanza)"
+              class="phrase-card"
+            >
+              <span class="phrase-order">
+                {{ phrase.order }}
+              </span>
+              <p class="phrase-text">
+                {{ phrase.text }}
+              </p>
             </div>
           </div>
         </div>
+
       </div>
-      <div class="arrangement-actions">
-        <a routerLink="/songs" class="btn btn-primary">Editar Frases</a>
-      </div>
-    </section>
-  </main>
+
+    </main>
+
+  </div>
 </div>
