@@ -33,6 +33,9 @@ public class SessionServiceImpl implements SessionService {
 
     @Override
     public Session get(String sessionId) {
+        if (sessionId == null || sessionId.isBlank()) {
+            throw new IllegalArgumentException("Session ID is required");
+        }
         return repository.findById(new SessionId(UUID.fromString(sessionId)))
             .orElseThrow(() -> new RuntimeException("Session não encontrada"));
     }
