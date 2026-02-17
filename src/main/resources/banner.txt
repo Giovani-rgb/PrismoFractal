@@ -1,0 +1,19 @@
+▗▄▄▖ ▗▄▄▖ ▗▄▄▄▖ ▗▄▄▖▗▖  ▗▖ ▗▄▖ 
+▐▌ ▐▌▐▌ ▐▌  █  ▐▌   ▐▛▚▞▜▌▐▌ ▐▌
+▐▛▀▘ ▐▛▀▚▖  █   ▝▀▚▖▐▌  ▐▌▐▌ ▐▌
+▐▌   ▐▌ ▐▌▗▄█▄▖▗▄▄▞▘▐▌  ▐▌▝▚▄▞▘
+                               
+                               
+                               
+▗▄▄▄ ▗▖  ▗▖ ▗▄▖                
+▐▌  █▐▛▚▖▐▌▐▌ ▐▌               
+▐▌  █▐▌ ▝▜▌▐▛▀▜▌               
+▐▙▄▄▀▐▌  ▐▌▐▌ ▐▌               
+                               
+                               
+                               
+
+Application: ${spring.application.name}
+Version: ${application.version}
+Environment: ${app.environment}
+Port: ${server.port}

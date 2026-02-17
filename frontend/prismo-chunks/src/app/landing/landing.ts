@@ -11,7 +11,7 @@ export class Landing {
 constructor(private router: Router) {}
 
   enter() {
-    this.router.navigate(['/melody-dna']);
+    this.router.navigate(['/']);
   }
 }
 

@@ -5,7 +5,9 @@ import com.prismo.mapper.SessionMapper;
 
 import jakarta.servlet.http.HttpServletRequest;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/sessions")
@@ -29,10 +31,9 @@ public class SessionController {
         @RequestBody(required = false) ReadSessionRequest body
     ) {
         if (body == null || body.sessionId() == null) {
-            //ResponseStatusException cannot be resolved to a type (Java). E HttpStatus cannot be resolved to a variable (Java)
             throw new ResponseStatusException(
                 HttpStatus.BAD_REQUEST,
-                "sessionId é obrigatório"
+                "sessionId é obrigatório, ou session nunca criada"
             );
         }
 
@@ -40,5 +41,4 @@ public class SessionController {
             service.get(body.sessionId())
         );
     }
-
 }
