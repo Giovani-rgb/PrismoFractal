@@ -4,7 +4,9 @@ import com.prismo.domain.User;
 import com.prismo.repository.UserRepository;
 import com.prismo.security.JwtUtil;
 import lombok.AllArgsConstructor;
-import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.Getter;
+import lombok.Setter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -54,7 +56,8 @@ public class AuthController {
     }
 }
 
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 class LoginRequest {
@@ -62,7 +65,8 @@ class LoginRequest {
     private String password;
 }
 
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 class RegisterRequest {
@@ -70,7 +74,8 @@ class RegisterRequest {
     private String password;
 }
 
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 class AuthResponse {
