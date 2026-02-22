@@ -91,13 +91,13 @@ args = "Angular Frontend"
 name = "Run Prismo App"
 author = "agent"
 
+[workflows.workflow.metadata]
+outputType = "webview"
+
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "mvn clean spring-boot:run"
-waitForPort = 8080
-
-[workflows.workflow.metadata]
-outputType = "console"
+waitForPort = 5000
 
 [[workflows.workflow]]
 name = "Run Angular Dev Server"
