@@ -1,0 +1,12 @@
+modules/
+    userauth/
+        controller/
+        service/
+        repository/
+        model/
+        dto/
+    session/
+        controller/
+        service/
+        repository/
+        model/
