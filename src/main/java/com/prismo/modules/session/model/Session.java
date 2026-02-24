@@ -39,5 +39,8 @@ public class Session {
     @Column
     private LocalDateTime lastAccessAt;
 
-    // getters e setters
+    public UUID getId() { return id; }
+    public String getIp() { return ipAddress; }
+    public String getUserAgent() { return userAgent; }
+    public String getCountry() { return country; }
 }

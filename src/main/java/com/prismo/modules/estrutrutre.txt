@@ -9,4 +9,6 @@ modules/
         controller/
         service/
         repository/
+            requestQueries.java
+            responseQueries.java
         model/

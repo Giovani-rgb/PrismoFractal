@@ -81,10 +81,6 @@ args = "Run Prismo App"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Run Angular Dev Server"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
 args = "Angular Frontend"
 
 [[workflows.workflow]]
@@ -98,19 +94,6 @@ outputType = "webview"
 task = "shell.exec"
 args = "mvn clean spring-boot:run"
 waitForPort = 5000
-
-[[workflows.workflow]]
-name = "Run Angular Dev Server"
-author = "agent"
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd frontend/prismo-chunks && npm run serve"
-waitForPort = 5000
-
-[workflows.workflow.metadata]
-outputType = "webview"
 
 [[workflows.workflow]]
 name = "Angular Frontend"
@@ -132,7 +115,7 @@ localPort = 4200
 
 [[ports]]
 localPort = 5000
+externalPort = 80
 
 [[ports]]
 localPort = 8080
-externalPort = 80
