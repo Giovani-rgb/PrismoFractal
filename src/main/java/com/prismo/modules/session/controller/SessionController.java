@@ -21,7 +21,14 @@ public class SessionController {
 
     @PostMapping
     public ResponseEntity<Map<String, Object>> create(@RequestBody Session session) {
-        Session created = service.create(session);
+        Session created = service.create(
+            session.getUserId(),
+            session.getToken(),
+            session.getIpAddress(),
+            session.getUserAgent(),
+            session.getCountry(),
+            session.getExpiresAt()
+        );
         return ResponseEntity.ok(ResponseQueries.sanitize(created));
     }
 
