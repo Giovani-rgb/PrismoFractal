@@ -1,45 +1,56 @@
-# Compiled class file
+# Java / Maven
+target/
 *.class
-
-# Log file
-*.log
-
-# BlueJ files
-*.ctxt
-
-# Mobile Tools for Java (J2ME)
-.mtj.tmp/
-
-# Package Files #
 *.jar
 *.war
-*.nar
 *.ear
-*.zip
 *.tar.gz
-*.rar
+.mvn/wrapper/maven-wrapper.jar
+.metadata
+.project
+.settings/
+.classpath
+.factorypath
 
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
-hs_err_pid*
-replay_pid*
-# Node modules
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+out/
+
+# VS Code
+.vscode/
+
+# Node / Angular
 node_modules/
 frontend/prismo-chunks/node_modules/
-
-# Angular build
 frontend/prismo-chunks/dist/
-.angular/
+frontend/prismo-chunks/.angular/
+.ntvs_analysis.dat
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
+# Secrets and Configs
+.env
+.replit
+.apt/
+.nix/
+replit.nix
+venv/
+.pythonlibs/
+.config/
+.local/
+application-local.properties
+application-secrets.properties
 
-# OS
+# Logs
+*.log
+logs/
+temp/
+/tmp/logs/
+
+# OS files
 .DS_Store
 Thumbs.db
 
-# Dependencies
-target/
+# Replit Specific
+replit.md
+.local/session_plan.md
