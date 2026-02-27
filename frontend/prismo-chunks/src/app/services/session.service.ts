@@ -1,103 +1,77 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, of, switchMap, tap } from 'rxjs';
+import { Observable, tap, catchError } from 'rxjs';
+import { throwError } from 'rxjs';
 
 export interface Session {
-  id: string;
-  status: 'ACTIVE' | 'CLOSED' | 'EXPIRED';
+  status: string;
   createdAt: number;
+  expiresAt?: number;
 }
 
 @Injectable({ providedIn: 'root' })
 export class SessionService {
 
   private readonly STORAGE_KEY = 'prismo_session';
-  private readonly API = '/api/sessions';
+  private readonly API = '/api/sessions/anonymous';
 
   constructor(private http: HttpClient) {}
 
-  // 1️⃣ Lê a sessão
-  read(): Observable<Session | null> {
-    console.log('[SessionService] 🔍 read() iniciado');
-
-    const stored = this.loadFromSessionStorage();
-
-    if (stored) {
-      console.log('[SessionService] 📦 sessão encontrada no sessionStorage', stored);
-      return of(stored);
-    }
-
-    console.log('[SessionService] ❌ nenhuma sessão no sessionStorage');
-
-    const cookieSessionId = this.readCookie('SESSION_ID');
-
-    if (!cookieSessionId) {
-      console.log('[SessionService] 🍪 cookie SESSION_ID não encontrado');
-      return of(null);
-    }
-
-    console.log('[SessionService] 🍪 cookie encontrado:', cookieSessionId);
-    console.log('[SessionService] 🌐 consultando backend /read');
-
-    return this.http.post<Session>(
-      `${this.API}/read`,
-      { sessionId: cookieSessionId }
-    ).pipe(
-      tap(session => {
-        console.log('[SessionService] ✅ sessão lida do backend', session);
-        this.save(session);
-      })
-    );
-  }
-
-  // 2️⃣ Cria sessão
+  /**
+   * Cria sessão no backend.
+   * Backend decide token, cookie, etc.
+   */
   create(): Observable<Session> {
-    console.log('[SessionService] 🆕 create() chamado');
-    console.log('[SessionService] 🌐 criando sessão no backend');
+
+    console.log('[SessionService] 🚀 Chamando API para criar sessão...');
 
     return this.http.post<Session>(this.API, {}).pipe(
+
       tap(session => {
-        console.log('[SessionService] ✅ sessão criada', session);
+        console.log('[SessionService] ✅ Sessão recebida do backend:', session);
         this.save(session);
+      }),
+
+      catchError(error => {
+        console.error('[SessionService] ❌ Erro ao criar sessão:', error);
+        return throwError(() => error);
       })
     );
   }
 
-  // 3️⃣ Read or Create
-  getOrCreate(): Observable<Session> {
-    console.log('[SessionService] 🔁 getOrCreate() iniciado');
+  /**
+   * Recupera sessão do sessionStorage (somente cache local)
+   */
+  readLocal(): Session | null {
 
-    return this.read().pipe(
-      switchMap(session => {
-        if (session) {
-          console.log('[SessionService] 👍 usando sessão existente', session);
-          return of(session);
-        }
+    console.log('[SessionService] 🔎 Lendo sessão do sessionStorage...');
 
-        console.log('[SessionService] 🚨 nenhuma sessão válida, criando nova');
-        return this.create();
-      })
-    );
-  }
-
-  // -----------------------
-  // helpers
-  // -----------------------
-
-  private loadFromSessionStorage(): Session | null {
     const raw = sessionStorage.getItem(this.STORAGE_KEY);
-    return raw ? JSON.parse(raw) : null;
+
+    if (!raw) {
+      console.warn('[SessionService] ⚠️ Nenhuma sessão encontrada no storage.');
+      return null;
+    }
+
+    try {
+      const parsed = JSON.parse(raw);
+      console.log('[SessionService] 📦 Sessão encontrada no storage:', parsed);
+      return parsed;
+    } catch (e) {
+      console.error('[SessionService] ❌ Erro ao fazer parse da sessão:', e);
+      return null;
+    }
   }
 
+  /**
+   * Salva sessão no sessionStorage
+   */
   private save(session: Session): void {
-    console.log('[SessionService] 💾 salvando sessão no sessionStorage');
-    sessionStorage.setItem(this.STORAGE_KEY, JSON.stringify(session));
-  }
 
-  private readCookie(name: string): string | null {
-    const match = document.cookie
-      .split('; ')
-      .find(row => row.startsWith(name + '='));
-    return match ? match.split('=')[1] : null;
+    console.log('[SessionService] 💾 Salvando sessão no sessionStorage...');
+
+    sessionStorage.setItem(this.STORAGE_KEY, JSON.stringify(session));
+
+    console.log('[SessionService] ✅ Sessão salva com sucesso.');
   }
 }

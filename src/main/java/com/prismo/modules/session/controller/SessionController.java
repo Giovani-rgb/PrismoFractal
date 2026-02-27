@@ -43,13 +43,6 @@ public class SessionController {
         return ResponseEntity.ok(session);
     }
 
-    @GetMapping("/{token}")
-    public ResponseEntity<Session> getByToken(@PathVariable String token) {
-        return service.findValidByToken(token)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
-    }
-
     /**
      * Revoga uma sessão pelo ID.
      */

@@ -1,7 +1,6 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
 import { RouterOutlet, Router } from '@angular/router';
 import { SessionService } from './services/session.service';
-import { ProjectService } from './services/project.service';
 
 @Component({
   selector: 'app-root',
@@ -9,23 +8,28 @@ import { ProjectService } from './services/project.service';
   templateUrl: './app.html',
   styleUrl: './app.scss'
 })
-export class App {
+export class App implements OnInit {
+
   private sessionService = inject(SessionService);
-  private projectService = inject(ProjectService);
   private router = inject(Router);
 
-  constructor() {
-    this.sessionService.getOrCreate().subscribe({
-      next: session => {
-        console.log('[SESSION]', session);
+  ngOnInit(): void {
 
-        if (this.router.url === '/') {
-          this.router.navigate(['/landing']);
+    console.log('[App] 🚀 Criando sessão anônima...');
+
+    this.sessionService.create().subscribe({
+      next: session => {
+        console.log('[App] ✅ Sessão criada:', session);
+
+        // redirecionamento opcional
+        if (this.router.url === '/' || this.router.url === '') {
+          this.router.navigateByUrl('/landing');
         }
       },
       error: err => {
-        console.error('Erro ao inicializar sessão', err);
+        console.error('[App] ❌ Erro ao criar sessão:', err);
       }
     });
+
   }
 }
