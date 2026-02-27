@@ -29,7 +29,7 @@ O projeto é organizado em uma arquitetura modular para facilitar a manutenção
 
 ## 🛠️ Tecnologias
 
-- **Backend:** Java 17, Spring Boot 3.2, JPA, Spring Security (JWT)
+- **Backend:** Java 17, Spring Boot 3.2, JPA, Spring Security (JWT).
 - **Frontend:** Angular 21, TypeScript, SCSS
 - **Banco de Dados:** PostgreSQL (Supabase)
 - **Licença:** Apache 2.0
