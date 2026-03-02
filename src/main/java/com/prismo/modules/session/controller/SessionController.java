@@ -2,10 +2,13 @@ package com.prismo.modules.session.controller;
 
 import com.prismo.modules.session.model.Session;
 import com.prismo.modules.session.service.ServiceSession;
+import com.prismo.modules.session.repository.ResponseQueries;
+
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -18,34 +21,26 @@ public class SessionController {
         this.service = service;
     }
 
-    /**
-     * Cria ou reutiliza sessão anônima.
-     *
-     * O IP é extraído da request.
-     * O User-Agent vem do header HTTP.
-     */
     @PostMapping("/anonymous")
-    public ResponseEntity<Session> createAnonymous(
+    public ResponseEntity<Map<String, Object>> createAnonymous(
             HttpServletRequest request,
             @RequestHeader(value = "User-Agent", required = false) String userAgent
     ) {
 
-        // Obtém IP do cliente
         String ip = request.getRemoteAddr();
 
-        // Fallback caso não venha user-agent
         if (userAgent == null) {
             userAgent = "UNKNOWN";
         }
 
         Session session = service.createAnonymous(ip, userAgent);
 
-        return ResponseEntity.ok(session);
+        // 🔥 Sanitiza antes de devolver
+        Map<String, Object> response = ResponseQueries.sanitize(session);
+
+        return ResponseEntity.ok(response);
     }
 
-    /**
-     * Revoga uma sessão pelo ID.
-     */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> revoke(@PathVariable UUID id) {
 

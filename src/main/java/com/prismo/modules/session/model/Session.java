@@ -12,32 +12,38 @@ public class Session {
     @GeneratedValue
     private UUID id;
 
-    @Column(nullable = false)
+    @Column(name = "user_id", nullable = false)
     private UUID userId;
 
     @Column(nullable = false, unique = true, length = 500)
     private String token;
 
-    @Column(nullable = false, length = 45)
+    @Column(name = "ip_address", nullable = false, length = 45)
     private String ipAddress;
 
-    @Column(nullable = false, length = 500)
+    @Column(name = "user_agent", nullable = false, length = 500)
     private String userAgent;
 
     @Column(length = 100)
     private String country;
 
-    @Column(nullable = false)
+    @Column(name = "expires_at", nullable = false)
     private LocalDateTime expiresAt;
 
     @Column(nullable = false)
     private boolean revoked = false;
 
-    @Column(nullable = false)
+    @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
-    @Column
+    @Column(name = "last_access_at")
     private LocalDateTime lastAccessAt;
+    
+    @Column(name = "key_update", nullable = false)
+    private UUID keyUpdate = UUID.randomUUID();
+
+    public UUID getKeyUpdate() { return keyUpdate; }
+    public void setKeyUpdate(UUID keyUpdate) { this.keyUpdate = keyUpdate; }
 
     public UUID getId() { return id; }
     public void setId(UUID id) { this.id = id; }
