@@ -12,69 +12,142 @@ public class Session {
     @GeneratedValue
     private UUID id;
 
-    @Column(name = "user_id", nullable = false)
+    @Column(name = "user_id")
     private UUID userId;
 
-    @Column(nullable = false, unique = true, length = 500)
+    // JWT real
+    @Column(nullable = false, unique = true, length = 1000)
     private String token;
+
+    // Identificador do dispositivo
+    @Column(nullable = false, length = 128)
+    private String fingerprint;
 
     @Column(name = "ip_address", nullable = false, length = 45)
     private String ipAddress;
 
-    @Column(name = "user_agent", nullable = false, length = 500)
+    @Column(nullable = false, length = 500)
     private String userAgent;
 
     @Column(length = 100)
     private String country;
 
-    @Column(name = "expires_at", nullable = false)
+    @Column(nullable = false)
     private LocalDateTime expiresAt;
 
     @Column(nullable = false)
     private boolean revoked = false;
 
-    @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt = LocalDateTime.now();
+    @Column(nullable = false)
+    private LocalDateTime createdAt;
 
-    @Column(name = "last_access_at")
+    @Column
     private LocalDateTime lastAccessAt;
-    
-    @Column(name = "key_update", nullable = false)
-    private UUID keyUpdate = UUID.randomUUID();
 
-    public UUID getKeyUpdate() { return keyUpdate; }
-    public void setKeyUpdate(UUID keyUpdate) { this.keyUpdate = keyUpdate; }
+    @Column(nullable = false)
+    private UUID keyUpdate;
 
-    public UUID getId() { return id; }
-    public void setId(UUID id) { this.id = id; }
+    @PrePersist
+    public void prePersist() {
+        this.createdAt = LocalDateTime.now();
+        this.keyUpdate = UUID.randomUUID();
+    }
 
-    public UUID getUserId() { return userId; }
-    public void setUserId(UUID userId) { this.userId = userId; }
+    // ===== GETTERS & SETTERS =====
 
-    public String getToken() { return token; }
-    public void setToken(String token) { this.token = token; }
+    public UUID getId() {
+        return id;
+    }
 
-    public String getIp() { return ipAddress; }
-    public void setIp(String ip) { this.ipAddress = ip; }
+    public void setId(UUID id) {
+        this.id = id;
+    }
 
-    public String getIpAddress() { return ipAddress; }
-    public void setIpAddress(String ipAddress) { this.ipAddress = ipAddress; }
+    public UUID getUserId() {
+        return userId;
+    }
 
-    public String getUserAgent() { return userAgent; }
-    public void setUserAgent(String userAgent) { this.userAgent = userAgent; }
+    public void setUserId(UUID userId) {
+        this.userId = userId;
+    }
 
-    public String getCountry() { return country; }
-    public void setCountry(String country) { this.country = country; }
+    public String getToken() {
+        return token;
+    }
 
-    public LocalDateTime getExpiresAt() { return expiresAt; }
-    public void setExpiresAt(LocalDateTime expiresAt) { this.expiresAt = expiresAt; }
+    public void setToken(String token) {
+        this.token = token;
+    }
 
-    public boolean isRevoked() { return revoked; }
-    public void setRevoked(boolean revoked) { this.revoked = revoked; }
+    public String getFingerprint() {
+        return fingerprint;
+    }
 
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public void setFingerprint(String fingerprint) {
+        this.fingerprint = fingerprint;
+    }
 
-    public LocalDateTime getLastAccessAt() { return lastAccessAt; }
-    public void setLastAccessAt(LocalDateTime lastAccessAt) { this.lastAccessAt = lastAccessAt; }
+    public String getIpAddress() {
+        return ipAddress;
+    }
+
+    public void setIpAddress(String ipAddress) {
+        this.ipAddress = ipAddress;
+    }
+
+    public String getUserAgent() {
+        return userAgent;
+    }
+
+    public void setUserAgent(String userAgent) {
+        this.userAgent = userAgent;
+    }
+
+    public String getCountry() {
+        return country;
+    }
+
+    public void setCountry(String country) {
+        this.country = country;
+    }
+
+    public LocalDateTime getExpiresAt() {
+        return expiresAt;
+    }
+
+    public void setExpiresAt(LocalDateTime expiresAt) {
+        this.expiresAt = expiresAt;
+    }
+
+    public boolean isRevoked() {
+        return revoked;
+    }
+
+    public void setRevoked(boolean revoked) {
+        this.revoked = revoked;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public LocalDateTime getLastAccessAt() {
+        return lastAccessAt;
+    }
+
+    public void setLastAccessAt(LocalDateTime lastAccessAt) {
+        this.lastAccessAt = lastAccessAt;
+    }
+
+    public UUID getKeyUpdate() {
+        return keyUpdate;
+    }
+
+    public void setKeyUpdate(UUID keyUpdate) {
+        this.keyUpdate = keyUpdate;
+    }
 }

@@ -7,6 +7,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -15,78 +17,85 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
+import javax.crypto.SecretKey;
+
 @Service
 @Transactional
 public class ServiceSession {
 
     private final SessionRepository repository;
+    private final GeoLocationService geoLocationService;
 
-    public ServiceSession(SessionRepository repository) {
+    // ⚠️ Em produção isso deve vir de configuração (.env / application.yml)
+    private final SecretKey secretKey =
+            Keys.hmacShaKeyFor("super-secret-key-super-secret-key-123456".getBytes());
+
+    public ServiceSession(SessionRepository repository,
+                          GeoLocationService geoLocationService) {
         this.repository = repository;
+        this.geoLocationService = geoLocationService;
     }
 
     /**
-     * Cria uma nova sessão preenchendo todos os campos obrigatórios.
+     * Cria uma nova sessão anônima realizando apenas um INSERT no banco.
+     * * Fluxo Otimizado:
+     * 1) Gera ID (UUID) manualmente
+     * 2) Resolve geolocalização e metadados
+     * 3) Gera o JWT usando o ID pré-gerado
+     * 4) Salva a entidade completa de uma única vez
      */
-    public Session create(
-            UUID userId,
-            String token,
-            String ipAddress,
-            String userAgent,
-            String country,
-            LocalDateTime expiresAt
-    ) {
+    public Session createAnonymous(String ipAddress, String userAgent) {
+        // 1️⃣ Geração manual do ID para evitar múltiplos saves
+        UUID sessionId = UUID.randomUUID();
 
-        if (token == null || token.isBlank()) {
-            throw new IllegalArgumentException("Token JWT não pode ser nulo ou vazio");
-        }
+        // 2️⃣ Definição de datas e metadados
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime expiresAt = now.plusDays(30);
+        String country = resolveCountrySafely(ipAddress);
+        String fingerprint = generateFingerprint(ipAddress, userAgent);
 
+        // 3️⃣ Geração do JWT usando o ID que acabamos de criar
+        String jwt = generateJwt(sessionId, expiresAt);
+
+        // 4️⃣ Construção da entidade Session completa
         Session session = new Session();
-        session.setUserId(userId);
-        session.setToken(token);
+        session.setId(sessionId); // Define o ID manualmente
+        session.setUserId(null);
         session.setIpAddress(ipAddress);
         session.setUserAgent(userAgent);
         session.setCountry(country);
+        session.setFingerprint(fingerprint);
+        session.setToken(jwt);
+        session.setCreatedAt(now);
+        session.setLastAccessAt(now);
         session.setExpiresAt(expiresAt);
         session.setRevoked(false);
-        session.setCreatedAt(LocalDateTime.now());
-        session.setLastAccessAt(LocalDateTime.now());
 
+        // 5️⃣ Persistência única
         return repository.save(session);
     }
 
     /**
-     * Cria ou reutiliza uma sessão anônima baseada no fingerprint (IP + UserAgent).
+     * Busca sessão válida por token.
      */
-    public Session createAnonymous(String ip, String userAgent) {
-        String fingerprint = generateFingerprint(ip, userAgent);
-        
-        // Tenta encontrar uma sessão válida com esse fingerprint (token)
-        return repository.findByToken(fingerprint)
-                .filter(s -> !s.isRevoked())
-                .filter(s -> s.getExpiresAt().isAfter(LocalDateTime.now()))
-                .orElseGet(() -> {
-                    Session newSession = new Session();
-                    newSession.setUserId(UUID.fromString("00000000-0000-0000-0000-000000000000")); // User ID nulo/anônimo
-                    newSession.setToken(fingerprint);
-                    newSession.setIpAddress(ip);
-                    newSession.setUserAgent(userAgent);
-                    newSession.setExpiresAt(LocalDateTime.now().plusDays(30));
-                    newSession.setRevoked(false);
-                    return repository.save(newSession);
-                });
-    }
-
     public Optional<Session> findValidByToken(String token) {
         return repository.findByToken(token)
                 .filter(s -> !s.isRevoked())
                 .filter(s -> s.getExpiresAt().isAfter(LocalDateTime.now()));
     }
 
+    /**
+     * Lista sessões ativas de um usuário.
+     */
     public List<Session> findActiveByUser(UUID userId) {
         return repository.findByUserIdAndRevokedFalse(userId);
     }
 
+    /**
+     * Revoga uma sessão pelo ID.
+     */
     public void revoke(UUID sessionId) {
         Session session = repository.findById(sessionId)
                 .orElseThrow(() -> new EntityNotFoundException("Session não encontrada"));
@@ -94,6 +103,9 @@ public class ServiceSession {
         session.setRevoked(true);
     }
 
+    /**
+     * Atualiza último acesso.
+     */
     public void updateLastAccess(UUID sessionId) {
         Session session = repository.findById(sessionId)
                 .orElseThrow(() -> new EntityNotFoundException("Session não encontrada"));
@@ -101,6 +113,10 @@ public class ServiceSession {
         session.setLastAccessAt(LocalDateTime.now());
     }
 
+    /**
+     * Gera fingerprint baseado em IP + UserAgent.
+     * Isso NÃO é identidade. É apenas heurística.
+     */
     private String generateFingerprint(String ip, String userAgent) {
         try {
             String raw = ip + "|" + userAgent;
@@ -110,5 +126,35 @@ public class ServiceSession {
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException("Erro ao gerar fingerprint", e);
         }
+    }
+
+    /**
+     * Resolve país via IP.
+     * Se falhar, retorna UNKNOWN.
+     */
+    private String resolveCountrySafely(String ipAddress) {
+        try {
+            return geoLocationService.getCountryByIp(ipAddress);
+        } catch (Exception e) {
+            return "UNKNOWN";
+        }
+    }
+
+    /**
+     * Gera JWT contendo:
+     * - subject = ID da sessão
+     * - issuedAt
+     * - expiration sincronizada com expiresAt da sessão
+     */
+    private String generateJwt(UUID sessionId, LocalDateTime expiresAt) {
+
+        return Jwts.builder()
+                .setSubject(sessionId.toString())
+                .setIssuedAt(new Date())
+                .setExpiration(Date.from(
+                        expiresAt.atZone(ZoneId.systemDefault()).toInstant()
+                ))
+                .signWith(secretKey)
+                .compact();
     }
 }

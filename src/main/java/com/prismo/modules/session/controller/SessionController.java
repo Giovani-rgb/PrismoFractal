@@ -24,21 +24,19 @@ public class SessionController {
     @PostMapping("/anonymous")
     public ResponseEntity<Map<String, Object>> createAnonymous(
             HttpServletRequest request,
-            @RequestHeader(value = "User-Agent", required = false) String userAgent
+            @RequestHeader(value = "User-Agent", defaultValue = "UNKNOWN") String userAgent
     ) {
-
-        String ip = request.getRemoteAddr();
-
-        if (userAgent == null) {
-            userAgent = "UNKNOWN";
+        // Captura o IP real mesmo se estiver atrás de um Proxy (Nginx, Cloudflare, etc)
+        String ip = request.getHeader("X-Forwarded-For");
+        if (ip == null || ip.isBlank()) {
+            ip = request.getRemoteAddr();
         }
 
+        // O Service gera o UUID e o JWT internamente e salva uma única vez
         Session session = service.createAnonymous(ip, userAgent);
 
-        // 🔥 Sanitiza antes de devolver
-        Map<String, Object> response = ResponseQueries.sanitize(session);
-
-        return ResponseEntity.ok(response);
+        // Sanitiza e retorna o mapa (agora seguro contra NullPointerException)
+        return ResponseEntity.ok(ResponseQueries.sanitize(session));
     }
 
     @DeleteMapping("/{id}")

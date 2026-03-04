@@ -10,6 +10,25 @@
   text-align: center;
 }
 
+.ascii-logo {
+  font-family: monospace;
+  font-weight: bold;
+  color: white;
+  line-height: 1.2;
+  text-align: center;
+  /* Camadas de sombra para criar o efeito 3D colorido */
+  text-shadow: 
+    1px 1px #ff0055, 
+    2px 2px #ffb300, 
+    3px 3px #00e5ff, 
+    4px 4px #7000ff;
+  animation: float 4s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-15px); }
+}
 button {
   margin-top: 24px;
   padding: 12px 24px;
@@ -20,3 +39,30 @@ button {
   color: #fff;
   cursor: pointer;
 }
+.music-notes {
+  position: absolute;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none; /* Garante que as notas não atrapalhem o clique no botão */
+}
+
+.note {
+  position: absolute;
+  bottom: 0;
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 24px;
+  animation: fly 6s linear infinite;
+}
+
+@keyframes fly {
+  0% { transform: translateY(0) rotate(0deg); opacity: 0; }
+  20% { opacity: 0.8; }
+  100% { transform: translateY(-100vh) rotate(360deg); opacity: 0; }
+}
+
+/* Espalhando as notas aleatoriamente */
+.note:nth-child(1) { left: 10%; animation-delay: 0s; }
+.note:nth-child(2) { left: 30%; animation-delay: 2s; }
+.note:nth-child(3) { left: 70%; animation-delay: 1s; }
+.note:nth-child(4) { left: 90%; animation-delay: 3s; }
