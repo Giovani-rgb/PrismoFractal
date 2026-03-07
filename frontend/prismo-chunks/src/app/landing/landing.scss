@@ -1,68 +1,132 @@
 .landing {
   height: 100vh;
+  width: 100%;
   background: linear-gradient(#111, #05050f);
   color: #fff;
   font-family: 'Press Start 2P', monospace;
+
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  /* Mudamos de center para space-between ou flex-start para controlar o topo */
+  justify-content: flex-start; 
   align-items: center;
   text-align: center;
+
+  /* Ressalva das bordas (Safe area) */
+  padding: 40px 20px; 
+  box-sizing: border-box;
+  overflow: hidden; /* Evita scroll por causa das notas subindo */
+  position: relative;
 }
 
 .ascii-logo {
-  font-family: monospace;
+  /* Garante que o logo tenha respiro e seja a primeira coisa no topo */
+  margin-top: 10px; 
+  margin-bottom: auto; /* Empurra o restante do conteúdo (h1, p, button) para o centro/baixo */
+
+  /* Importante: ASCII Art precisa de fonte monoespaçada para não quebrar o desenho */
+  font-family: 'Courier New', monospace; 
+  font-size: clamp(10px, 2vw, 20px); /* Escala o tamanho conforme a tela */
+  white-space: pre; /* Mantém os espaços do ASCII */
   font-weight: bold;
   color: white;
-  line-height: 1.2;
-  text-align: center;
-  /* Camadas de sombra para criar o efeito 3D colorido */
+  line-height: 1.1;
+
+  /* Efeito 3D Arco-íris */
   text-shadow: 
     1px 1px #ff0055, 
     2px 2px #ffb300, 
     3px 3px #00e5ff, 
     4px 4px #7000ff;
+
   animation: float 4s ease-in-out infinite;
+  z-index: 1;
+}
+
+/* Agrupando o texto e o botão para ficarem centralizados no espaço restante */
+h1, p, button {
+  position: relative;
+  z-index: 1;
+}
+
+h1 {
+  font-size: 24px;
+  margin-bottom: 10px;
 }
 
 @keyframes float {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-15px); }
 }
+
 button {
   margin-top: 24px;
+  margin-bottom: 60px; /* Distância da borda inferior */
   padding: 12px 24px;
   font-family: inherit;
-  font-size: 10px;
+  font-size: 12px;
   background: transparent;
-  border: 1px solid #fff;
+  border: 2px solid #fff;
   color: #fff;
   cursor: pointer;
+  transition: all 0.3s ease;
+
+  &:hover {
+    background: #fff;
+    color: #000;
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.5);
+  }
 }
+
+
 .music-notes {
   position: absolute;
   top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
-  pointer-events: none; /* Garante que as notas não atrapalhem o clique no botão */
+  pointer-events: none;
+  z-index: 2;
+  overflow: hidden;
 }
 
 .note {
   position: absolute;
-  bottom: 0;
-  color: rgba(255, 255, 255, 0.3);
-  font-size: 24px;
-  animation: fly 6s linear infinite;
+  top: -50px; /* Começa acima da tela */
+  font-family: monospace;
+  font-size: 20px;
+  color: rgba(255, 255, 255, 0.8);
+  /* Brilho neon suave nas notas */
+  text-shadow: 0 0 8px rgba(0, 229, 255, 0.8), 0 0 15px rgba(255, 0, 85, 0.5);
+  writing-mode: vertical-rl; /* Faz o texto ficar em coluna se houver mais de um */
+  user-select: none;
+  animation: matrix-rain linear infinite;
 }
 
-@keyframes fly {
-  0% { transform: translateY(0) rotate(0deg); opacity: 0; }
-  20% { opacity: 0.8; }
-  100% { transform: translateY(-100vh) rotate(360deg); opacity: 0; }
+@keyframes matrix-rain {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.8;
+  }
+  90% {
+    opacity: 0.6;
+  }
+  100% {
+    transform: translateY(110vh);
+    opacity: 0;
+  }
 }
 
-/* Espalhando as notas aleatoriamente */
-.note:nth-child(1) { left: 10%; animation-delay: 0s; }
-.note:nth-child(2) { left: 30%; animation-delay: 2s; }
-.note:nth-child(3) { left: 70%; animation-delay: 1s; }
-.note:nth-child(4) { left: 90%; animation-delay: 3s; }
+/* Criando variações de velocidade e posição para o efeito "Rain" */
+/* Adicionei mais notas aqui para preencher a tela */
+.note:nth-child(1) { left: 5%;  animation-duration: 4s;  animation-delay: 0.5s; font-size: 14px; }
+.note:nth-child(2) { left: 15%; animation-duration: 6s;  animation-delay: 2s;   font-size: 22px; }
+.note:nth-child(3) { left: 25%; animation-duration: 3.5s; animation-delay: 1.2s; font-size: 18px; }
+.note:nth-child(4) { left: 40%; animation-duration: 5.5s; animation-delay: 0s;   font-size: 26px; }
+.note:nth-child(5) { left: 55%; animation-duration: 4.5s; animation-delay: 3s;   font-size: 16px; }
+.note:nth-child(6) { left: 70%; animation-duration: 7s;   animation-delay: 1.5s; font-size: 20px; }
+.note:nth-child(7) { left: 85%; animation-duration: 3s;   animation-delay: 0.8s; font-size: 12px; }
+.note:nth-child(8) { left: 95%; animation-duration: 5s;   animation-delay: 2.5s; font-size: 24px; }

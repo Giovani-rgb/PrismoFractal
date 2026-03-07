@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, tap, catchError } from 'rxjs';
 import { throwError } from 'rxjs';
+import { environment } from '../../environments/environment';
 
 export interface Session {
   status: string;
@@ -12,8 +13,8 @@ export interface Session {
 @Injectable({ providedIn: 'root' })
 export class SessionService {
 
-  private readonly STORAGE_KEY = 'prismo_session';
-  private readonly API = '/api/sessions/anonymous';
+  private readonly STORAGE_KEY = environment.jwtTokenKey;
+  private readonly API = `${environment.apiUrl}/api/sessions/anonymous`;
 
   constructor(private http: HttpClient) {}
 
