@@ -32,13 +32,13 @@ public class SecurityConfig {
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
             )
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/", "/index.html", "/static/**", "/*.js", "/*.css", "/*.ico", "/*.json", "/assets/**").permitAll()
+                // Liberando arquivos na raiz da pasta static e assets
+                .requestMatchers("/", "/index.html", "/favicon.ico", "/*.js", "/*.css", "/*.scss", "/*.json", "/*.txt", "/assets/**").permitAll()
                 .requestMatchers("/api/auth/**").permitAll()
-                // Protege todas as rotas de sessão, exigindo autenticação (que será validada pelo filtro)
+                // Protege rotas de sessão e o restante da API
                 .requestMatchers("/api/sessions/**").authenticated()
                 .anyRequest().authenticated()
             )
-            // Adiciona o filtro JWT e logo após o seu filtro de sessão
             .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterAfter(sessionAuthFilter, JwtAuthenticationFilter.class);
 
@@ -50,4 +50,3 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 }
-
