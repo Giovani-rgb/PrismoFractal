@@ -1,6 +1,6 @@
 package com.prismo.config;
 
-import lombok.RequiredArgsConstructor;
+import com.prismo.modules.session.security.SessionAuthFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -16,9 +16,11 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtFilter;
+    private final SessionAuthFilter sessionAuthFilter;
 
-    public SecurityConfig(JwtAuthenticationFilter jwtFilter) {
+    public SecurityConfig(JwtAuthenticationFilter jwtFilter, SessionAuthFilter sessionAuthFilter) {
         this.jwtFilter = jwtFilter;
+        this.sessionAuthFilter = sessionAuthFilter;
     }
 
     @Bean
@@ -31,11 +33,14 @@ public class SecurityConfig {
             )
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/", "/index.html", "/static/**", "/*.js", "/*.css", "/*.ico", "/*.json", "/assets/**").permitAll()
-                .requestMatchers("/api/auth/**", "/api/sessions/**").permitAll()
-                .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/sessions/anonymous").permitAll()
+                .requestMatchers("/api/auth/**").permitAll()
+                // Protege todas as rotas de sessão, exigindo autenticação (que será validada pelo filtro)
+                .requestMatchers("/api/sessions/**").authenticated()
                 .anyRequest().authenticated()
             )
-            .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+            // Adiciona o filtro JWT e logo após o seu filtro de sessão
+            .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
+            .addFilterAfter(sessionAuthFilter, JwtAuthenticationFilter.class);
 
         return http.build();
     }
@@ -45,3 +50,4 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 }
+

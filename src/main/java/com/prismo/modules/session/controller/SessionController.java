@@ -8,7 +8,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -16,34 +15,39 @@ import java.util.UUID;
 public class SessionController {
 
     private final ServiceSession service;
+    // Agora injetamos o componente que gerencia a lógica de resposta/criptografia
+    private final ResponseQueries responseQueries;
 
-    public SessionController(ServiceSession service) {
+    // Injeção de dependência pelo construtor (o Spring cuida de tudo)
+    public SessionController(ServiceSession service, ResponseQueries responseQueries) {
         this.service = service;
+        this.responseQueries = responseQueries;
     }
 
     @PostMapping("/anonymous")
-    public ResponseEntity<Map<String, Object>> createAnonymous(
+    public ResponseEntity<String> createAnonymous(
             HttpServletRequest request,
             @RequestHeader(value = "User-Agent", defaultValue = "UNKNOWN") String userAgent
     ) {
-        // Captura o IP real mesmo se estiver atrás de um Proxy (Nginx, Cloudflare, etc)
+        // Captura o IP real
         String ip = request.getHeader("X-Forwarded-For");
         if (ip == null || ip.isBlank()) {
             ip = request.getRemoteAddr();
         }
 
-        // O Service gera o UUID e o JWT internamente e salva uma única vez
+        // Cria a sessão
         Session session = service.createAnonymous(ip, userAgent);
 
-        // Sanitiza e retorna o mapa (agora seguro contra NullPointerException)
-        return ResponseEntity.ok(ResponseQueries.sanitize(session));
+        // O Controller não sabe mais que existe uma chave secreta envolvida.
+        // O ResponseQueries gerencia isso internamente através da injeção do Spring.
+        String encryptedResponse = responseQueries.sanitizeAndEncrypt(session);
+
+        return ResponseEntity.ok(encryptedResponse);
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> revoke(@PathVariable UUID id) {
-
         service.revoke(id);
-
         return ResponseEntity.noContent().build();
     }
 }

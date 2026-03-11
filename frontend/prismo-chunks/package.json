@@ -4,12 +4,12 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
-    "preserve": "node scripts/load-env.js",
-    "serve": "ng serve --host 0.0.0.0 --port 5000",
-    "prebuild": "node scripts/load-env.js",
+    "prebuild": "node scripts/load-env.mjs",
     "build": "ng build",
-    "watch": "ng build --watch --configuration development",
-    "test": "ng test"
+    "pretest": "node scripts/load-env.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "watch": "ng build --watch --configuration development"
   },
   "prettier": {
     "printWidth": 100,

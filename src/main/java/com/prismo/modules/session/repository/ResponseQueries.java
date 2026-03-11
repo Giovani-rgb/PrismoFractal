@@ -1,31 +1,55 @@
 package com.prismo.modules.session.repository;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.prismo.modules.session.model.Session;
+import com.prismo.modules.session.util.EncryptionUtils;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+
 import java.util.HashMap;
 import java.util.Map;
 
-public final class ResponseQueries {
+@Component 
+public class ResponseQueries {
 
-    private ResponseQueries() {}
+    private final ObjectMapper mapper;
+    private final String appSecret;
 
-    public static Map<String, Object> sanitize(Session session) {
-        // Usamos HashMap porque ele PERMITE valores nulos (null values)
-        Map<String, Object> response = new HashMap<>();
-        
-        response.put("id_prospect", session.getId());
-        response.put("refs", session.getUserId()); // Agora pode ser null sem erro
-        response.put("country", session.getCountry());
-        response.put("revoked", session.isRevoked());
-        response.put("keyUpdate", session.getKeyUpdate());
-        response.put("createdAt", session.getCreatedAt());
-        response.put("expiresAt", session.getExpiresAt());
-        response.put("lastAccessAt", session.getLastAccessAt());
-        
-        // Se você quiser retornar o Token também (já que ele é gerado no Service):
-        if (session.getToken() != null) {
-            response.put("token", session.getToken());
+    // Injeção via construtor: A melhor prática para componentes Spring
+    public ResponseQueries(
+            @Value("${app.session.secret}") String appSecret
+    ) {
+        this.appSecret = appSecret;
+        this.mapper = new ObjectMapper().registerModule(new JavaTimeModule());
+    }
+
+    /**
+     * Agora o método NÃO é mais static, pois depende da variável injetada
+     */
+    public String sanitizeAndEncrypt(Session session) {
+        try {
+            Map<String, Object> data = new HashMap<>();
+            data.put("id_prospect", session.getId());
+            data.put("refs", session.getUserId()); 
+            data.put("country", session.getCountry());
+            data.put("revoked", session.isRevoked());
+            data.put("keyUpdate", session.getKeyUpdate());
+            data.put("createdAt", session.getCreatedAt());
+            data.put("expiresAt", session.getExpiresAt());
+            data.put("lastAccessAt", session.getLastAccessAt());
+
+            if (session.getToken() != null) {
+                data.put("token", session.getToken());
+            }
+
+            String jsonPayload = mapper.writeValueAsString(data);
+
+            // Usa a variável de instância injetada
+            return EncryptionUtils.encrypt(jsonPayload, this.appSecret);
+
+        } catch (Exception e) {
+            throw new RuntimeException("Erro ao processar e criptografar resposta da sessão", e);
         }
-
-        return response;
     }
 }
