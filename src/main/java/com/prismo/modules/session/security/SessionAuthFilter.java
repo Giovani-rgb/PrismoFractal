@@ -18,20 +18,31 @@ public class SessionAuthFilter extends OncePerRequestFilter {
     @Value("${APP_ID_KEY}")
     private String appId;
 
+    // Aplica SOMENTE às rotas do módulo de sessão
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        return !request.getRequestURI().startsWith("/api/sessions/");
+    }
+
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
 
-        String headerAuth = request.getHeader("Authorization");
-        String headerAppId = request.getHeader("X-App-ID");
+        String authHeader = request.getHeader("Authorization");
+        String appIdHeader = request.getHeader("X-App-Id");
 
-        // Valida as credenciais para todas as requisições do módulo
-        if (secretSession.equals(headerAuth) && appId.equals(headerAppId)) {
+        // Angular envia "Bearer <secret>" — extrai somente o secret
+        String receivedSecret = null;
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            receivedSecret = authHeader.substring(7).trim();
+        }
+
+        if (secretSession.equals(receivedSecret) && appId.equals(appIdHeader)) {
             filterChain.doFilter(request, response);
         } else {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.setCharacterEncoding("UTF-8");
-            response.getWriter().write("Acesso negado: Credenciais de módulo inválidas.");
+            response.setContentType("application/json;charset=UTF-8");
+            response.getWriter().write("{\"error\":\"Credenciais de modulo invalidas.\"}");
         }
     }
 }
