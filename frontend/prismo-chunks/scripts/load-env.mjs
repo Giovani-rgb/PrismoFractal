@@ -39,7 +39,11 @@ const env = {
   appId:             process.env.VITE_APP_ID              || 'prismo-app',
   appVersion:        process.env.VITE_APP_VERSION         || '0.0.1',
   appSessionSecret:  process.env.VITE_APP_SESSION_SECRET  || '',
-  apiUrl:            process.env.VITE_API_URL             || 'http://localhost:8080',
+  // URL relativa quando localhost — Spring Boot serve Angular e API na mesma origem
+  apiUrl: (() => {
+    const raw = process.env.VITE_API_URL || '';
+    return raw.includes('localhost') || raw.includes('127.0.0.1') ? '' : raw;
+  })(),
   sessionTimeout:    process.env.VITE_SESSION_TIMEOUT     || '1800000',
   jwtTokenKey:       process.env.VITE_JWT_TOKEN_KEY       || 'prismo_jwt_token',
 };
