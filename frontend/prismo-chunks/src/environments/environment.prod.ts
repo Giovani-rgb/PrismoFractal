@@ -8,7 +8,7 @@ export const environment = {
   sessionTimeout: 1600000,
   jwtTokenKey: 'Gn0rRkBkHyfN7sk5S16ijIKpniaZ2JlHAmfzrU5+V653s5CgmCb7UalrNyOlARSo8SnUUCBpJMigWseRcPLuUP==',
   firebase: {
-    apiKey: '',
+    apiKey: '1',
     authDomain: 'prismo-262a2.firebaseapp.com',
     projectId: 'prismo-262a2',
     storageBucket: 'prismo-262a2.firebasestorage.app',
