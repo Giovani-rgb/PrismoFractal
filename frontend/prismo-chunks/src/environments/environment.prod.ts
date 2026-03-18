@@ -7,4 +7,13 @@ export const environment = {
   apiUrl: '',
   sessionTimeout: 1600000,
   jwtTokenKey: 'Gn0rRkBkHyfN7sk5S16ijIKpniaZ2JlHAmfzrU5+V653s5CgmCb7UalrNyOlARSo8SnUUCBpJMigWseRcPLuUP==',
+  firebase: {
+    apiKey: '',
+    authDomain: 'prismo-262a2.firebaseapp.com',
+    projectId: 'prismo-262a2',
+    storageBucket: 'prismo-262a2.firebasestorage.app',
+    messagingSenderId: '700328153210',
+    appId: '1:700328153210:web:1d93e178cd8b60061f2bc3',
+    measurementId: 'G-P3SHKF1LCJ',
+  },
 };

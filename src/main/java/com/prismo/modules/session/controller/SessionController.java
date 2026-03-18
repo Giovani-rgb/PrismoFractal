@@ -5,6 +5,8 @@ import com.prismo.modules.session.service.ServiceSession;
 import com.prismo.modules.session.repository.ResponseQueries;
 
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -24,30 +26,34 @@ public class SessionController {
     }
 
     /**
-     * Endpoint para criar sessão anônima.
-     * Alterado para retornar ResponseEntity<Map<String, String>> para garantir
-     * que o Jackson converta o resultado em um objeto JSON estruturado.
+     * Endpoint para criar sessão anônima com Drop de Cookie.
      */
     @PostMapping("/anonymous")
     public ResponseEntity<Map<String, String>> createAnonymous(
             HttpServletRequest request,
             @RequestHeader(value = "User-Agent", defaultValue = "UNKNOWN") String userAgent
     ) {
-        // Captura o IP real (tratando proxy)
+        // 1. Captura o IP real
         String ip = request.getHeader("X-Forwarded-For");
         if (ip == null || ip.isBlank()) {
             ip = request.getRemoteAddr();
         }
 
-        // 1. Cria a sessão no banco/memória
+        // 2. Cria a sessão no banco e gera o JWT interno
         Session session = service.createAnonymous(ip, userAgent);
 
-        // 2. O ResponseQueries agora retorna um Map contendo 'iv' e 'ciphertext'
-        // Isso resolve o erro de fluxo no Angular, que esperava um objeto e recebia String.
+        // 3. Sanitiza e criptografa os dados para a resposta JSON
         Map<String, String> encryptedResponse = responseQueries.sanitizeAndEncrypt(session);
 
-        // 3. Retorna o Map. O Spring enviará Content-Type: application/json
-        return ResponseEntity.ok(encryptedResponse);
+        // 4. Gera o Cookie usando o ciphertext (valor criptografado)
+        // Isso garante que o que está no cookie é o mesmo que o Angular recebeu
+        String cookieValue = encryptedResponse.get("ciphertext");
+        ResponseCookie sessionCookie = service.generateSessionCookie(cookieValue);
+
+        // 5. Retorna o JSON no corpo E o cookie no Header Set-Cookie
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, sessionCookie.toString())
+                .body(encryptedResponse);
     }
 
     @DeleteMapping("/{id}")

@@ -1,8 +1,8 @@
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
-import { ProjectService } from '../services/project.service';
-import { SessionService } from '../services/session.service';
+import { ProjectService } from '../../services/project.service';
+import { SessionService } from '../../services/session.service';
 
 @Component({
   selector: 'app-dashboard',

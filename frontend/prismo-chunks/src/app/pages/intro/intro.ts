@@ -1,7 +1,7 @@
 import { Component, HostListener, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { GameMenu } from '../game-menu/game-menu';
-import { SessionService } from '../services/session.service';
+import { SessionService } from '../../services/session.service';
 
 @Component({
   selector: 'app-intro',

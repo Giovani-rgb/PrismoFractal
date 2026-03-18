@@ -1,11 +1,11 @@
 import { Routes } from '@angular/router';
-import { Intro } from './intro/intro';
-import { World } from './world/world';
-import { Songs } from './songs/songs';
-import { Settings } from './settings/settings';
-import { Landing } from './landing/landing';
-import { MelodyDna } from './melody-dna/melody-dna';
-import { Dashboard } from './dashboard/dashboard';
+import { Intro } from './pages/intro/intro';
+import { World } from './pages/world/world';
+import { Songs } from './pages/songs/songs';
+import { Settings } from './pages/settings/settings';
+import { Landing } from './pages/landing/landing';
+import { MelodyDna } from './pages/melody-dna/melody-dna';
+import { Dashboard } from './pages/dashboard/dashboard';
 
 export const routes: Routes = [
   { path: '', component: Intro },

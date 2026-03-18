@@ -30,6 +30,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         final String authHeader = request.getHeader("Authorization");
 
+        // Se não houver Header ou não for Bearer, segue para o próximo filtro
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
             return;
@@ -38,24 +39,27 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String token = authHeader.substring(7).trim();
 
         try {
-            String username = jwtService.extractUsername(token);
+            // Alterado de extractUsername para extractSubject para bater com o novo JwtService
+            String username = jwtService.extractSubject(token);
 
-            if (username != null &&
-                SecurityContextHolder.getContext().getAuthentication() == null) {
+            if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
 
-                UsernamePasswordAuthenticationToken authToken =
-                        new UsernamePasswordAuthenticationToken(
-                                username,
-                                null,
-                                Collections.emptyList()
-                        );
+                // Opcional: Validar se o token não expirou antes de autenticar
+                if (!jwtService.isTokenExpired(token)) {
+                    UsernamePasswordAuthenticationToken authToken =
+                            new UsernamePasswordAuthenticationToken(
+                                    username,
+                                    null,
+                                    Collections.emptyList()
+                            );
 
-                authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                SecurityContextHolder.getContext().setAuthentication(authToken);
+                    authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(authToken);
+                }
             }
         } catch (Exception e) {
-            // Token Bearer presente mas não é um JWT válido (ex: APP_SESSION_SECRET do módulo session).
-            // Deixa o filtro seguir — o SessionAuthFilter ou o AuthorizationFilter decidem o que fazer.
+            // Log de erro silencioso: se o token for inválido para este filtro (ex: sessão anônima),
+            // apenas ignoramos e deixamos o fluxo seguir.
         }
 
         filterChain.doFilter(request, response);
