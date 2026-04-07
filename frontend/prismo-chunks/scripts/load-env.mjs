@@ -41,7 +41,7 @@ const env = {
   appSessionSecret:  process.env.VITE_APP_SESSION_SECRET  || '',
   apiUrl,
   sessionTimeout:    process.env.VITE_SESSION_TIMEOUT     || '1800000',
-  jwtTokenKey:       process.env.VITE_JWT_TOKEN_KEY       || 'prismo_jwt_token',
+  nameSessionKey:       process.env.VITE_NAME_SESSION_KEY       || 'name_session_key',
   firebase: {
     apiKey:            process.env.VITE_FIREBASE_API_KEY             || '',
     authDomain:        process.env.VITE_FIREBASE_AUTH_DOMAIN         || '',
@@ -61,7 +61,7 @@ const envContent = `export const environment = {
   appSessionSecret: '${env.appSessionSecret}',
   apiUrl: '${env.apiUrl}',
   sessionTimeout: ${env.sessionTimeout},
-  jwtTokenKey: '${env.jwtTokenKey}',
+  nameSessionKey: '${env.nameSessionKey}',
   firebase: {
     apiKey: '${env.firebase.apiKey}',
     authDomain: '${env.firebase.authDomain}',

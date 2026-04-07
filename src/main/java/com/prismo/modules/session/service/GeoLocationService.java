@@ -28,7 +28,7 @@ public class GeoLocationService {
 
     public String getCountryByIp(String ipAddress) {
         if (dbReader == null || ipAddress == null || ipAddress.equals("127.0.0.1") || ipAddress.equals("0:0:0:0:0:0:0:1")) {
-            return "LOCAL";
+            return "BRAZIL";
         }
 
         try {
