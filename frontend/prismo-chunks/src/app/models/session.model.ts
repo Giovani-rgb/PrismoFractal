@@ -5,7 +5,8 @@ export enum SessionTag {
   OFFLINE = 'OFFLINE',
   PWA = 'PWA',
   VOID = 'VOID',
-  REST = 'REST'
+  REST = 'REST',
+  PUBLIC = 'PUBLIC'
 }
 
 /**

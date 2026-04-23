@@ -83,18 +83,25 @@ export class App implements OnInit {
    * FINALIZAÇÃO DETERMINÍSTICA
    * Valida se a esteira entregou o selo REST ou se estamos operando OFFLINE.
    */
+  /**
+   * FINALIZAÇÃO DETERMINÍSTICA
+   * Valida se a esteira entregou o selo REST ou se estamos operando OFFLINE.
+   */
   private finalizeFlow(): void {
     const state = this.context.currentState;
 
     // Se o estado for REST ou OFFLINE (com dados), a aplicação pode seguir
     if (state.data && (state.tag === SessionTag.REST || state.tag === SessionTag.OFFLINE)) {
-      console.log(`%c[App] ✨ Veracidade confirmada (${state.tag}). Redirecionando...`, 'color: #6366f1');
-      
-      // Aplica log de modo PWA se detetado para debug em 340px
+
+      // LOG DE AUDITORIA DO CONTEXTO (Pós-Rest)
+      console.log(`%c[App] ✨ Estado de Repouso Alcançado: ${state.tag}`, 'color: #6366f1; font-weight: bold;');
+      console.dir(state); // Mostra o objeto PrismoSessionState completo no console
+
+      // Feedback visual de PWA para 340px
       if (state.use_pwa_styles) {
         console.log('%c[App] 📱 PWA Mode: Active Styles Enabled.', 'color: #ec4899');
       }
-      
+
       this.checkRedirect();
     } else {
       throw new Error(`[App] Bloqueio: Esteira concluída em estado inválido: ${state.tag}`);

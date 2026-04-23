@@ -9,7 +9,7 @@ import { getAuth, provideAuth } from '@angular/fire/auth'; // Exemplo para Auth
 import { getFirestore, provideFirestore } from '@angular/fire/firestore'; // Exemplo para Firestore
 
 import { routes } from './app.routes';
-import { authInterceptor } from './services/auth.interceptor';
+import { sessionGatekeeper } from './services-workers/SessionPipelineOrchestrator';
 import { environment } from '../environments/environment'; // 2. Importe o environment
 
 export const appConfig: ApplicationConfig = {
@@ -17,14 +17,13 @@ export const appConfig: ApplicationConfig = {
     provideBrowserGlobalErrorListeners(),
     provideRouter(routes),
     provideHttpClient(
-      withInterceptors([authInterceptor])
+      // O registro PRECISA estar aqui, senão nada acontece.
+      withInterceptors([sessionGatekeeper]) 
     ),
     
-    // 3. Inicialização do Firebase via Providers
+    // Configurações do Firebase
     provideFirebaseApp(() => initializeApp(environment.firebase)),
     provideAnalytics(() => getAnalytics()),
-    
-    // Opcional: Adicione outros serviços conforme precisar
     provideAuth(() => getAuth()),
     provideFirestore(() => getFirestore()),
   ],

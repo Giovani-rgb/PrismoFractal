@@ -24,11 +24,6 @@ public class SecurityConfig {
         this.sessionAuthFilter = sessionAuthFilter;
     }
 
-    /**
-     * Arquivos estáticos do Angular ignorados completamente — nenhum filtro roda.
-     * Cobre: index.html, bundles JS/CSS, favicon, assets, e qualquer
-     * rota SPA sem extensão que o ViewController encaminha para index.html.
-     */
     @Bean
     public WebSecurityCustomizer webSecurityCustomizer() {
         return (web) -> web.ignoring().requestMatchers(
@@ -43,13 +38,10 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                // Rotas públicas da API
                 .requestMatchers("/api/auth/**").permitAll()
-                // Módulo session — o SessionAuthFilter valida as credenciais do app Angular
+                .requestMatchers("/api/sessions/public").permitAll()
                 .requestMatchers("/api/sessions/**").permitAll()
-                // Demais rotas /api/** exigem JWT válido
                 .requestMatchers("/api/**").authenticated()
-                // Rotas SPA (Angular HTML5 routing) — o ViewController serve index.html
                 .anyRequest().permitAll()
             )
             .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)

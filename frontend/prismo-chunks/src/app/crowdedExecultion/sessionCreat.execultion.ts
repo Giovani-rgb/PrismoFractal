@@ -1,68 +1,95 @@
 import { Injectable, inject } from '@angular/core';
-import { SessionService } from '../services/session.service';
+import { SessionPipelineOrchestrator } from '../services-workers/SessionPipelineOrchestrator';
 import { SessionContext } from '../context/session.context';
-import { SessionTag, Session } from '../models/session.model';
-import { environment } from '../../environments/environment';
-import { lastValueFrom } from 'rxjs';
+import { Session, SessionTag } from '../models/session.model';
 import { SessionWorkerPipe } from '../pipes/session-worker.pipe';
+import { environment } from '../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
 export class SessionCreationExecution {
   private readonly SECRET = environment.appSessionSecret;
-  private service = inject(SessionService);
+
+  private orchestrator = inject(SessionPipelineOrchestrator);
   private context = inject(SessionContext);
 
   async execute(): Promise<void> {
-    // [INIT] Início determinístico da rota
-    this.context.setOperation(SessionTag.CREATE);
-
     try {
-      // STAGE 1: Ingestão (API Inbound)
-      const raw = await lastValueFrom(this.service.fetchNewSession());
-      console.log(`%c[Stage 1] Inbound detectado.`, 'color: #a5b4fc');
+      // --- STAGE 0: HANDSHAKE MATEMÁTICO (AES-GCM PREP) ---
+      // Definimos a Tag para PUBLIC para o Orquestrador saber qual contrato usar
+      this.context.setOperation(SessionTag.PUBLIC);
 
-      // STAGE 2: Processamento (Web Worker Pipe)
-      // Delegamos a criptografia e a Porta XOR para a thread isolada
-      const workerResult = await SessionWorkerPipe.process(raw, this.SECRET);
+      // 1. Drop inicial: Pega p, g, A do servidor
+      const dhParams = await this.orchestrator.executeAssignment();
+
+console.log(`%c[Stage 0.1] Parâmetros DH recebidos. Drop A detectado.`, 'color: #fbbf24');
+console.log('%c[Raw Data]:', 'color: #94a3b8', dhParams);
+    
+
+      // 2. REGISTRO IMEDIATO: O Interceptor precisa ler isso AGORA
+      (window as any)._sessionToken = dhParams.windowToken;
+
+
       
-      // STAGE 3: Validação de Conformidade (Determinismo local)
-      // Aqui garantimos que o que saiu do Worker é utilizável
+
+      // 2.1 Worker Calcula: Gera produto 'B' e a Shared Secret (Key para AES-GCM)
+
+      const cryptoSetup = await SessionWorkerPipe.calculateDH(dhParams);
+
+      // --- ADICIONE ESTA LINHA PARA DEBUG ---
+      console.log(
+        `%c[DEBUG] Shared Secret Key:`,
+        'color: #00ff00; font-weight: bold',
+        cryptoSetup.sharedSecret,
+      );
+
+      console.log(
+        `%c[Stage 0.2] Produto B gerado via Worker. Shared Secret calculada.`,
+        'color: #fbbf24',
+      );
+
+      // 3. Callback: Envia produto 'B' para o servidor fechar o segredo do lado dele
+      await this.orchestrator.executeAssignment({
+        B: cryptoSetup.B,
+      });
+      console.log(
+        `%c[Stage 0.3] Handshake finalizado. Canal criptográfico pronto.`,
+        'color: #fbbf24',
+      );
+
+      // --- STAGE 1: INGESTÃO (CREATE) ---
+      this.context.setOperation(SessionTag.CREATE);
+      const raw = await this.orchestrator.executeAssignment();
+      console.log(`%c[Stage 1] Inbound detectado (Cifrado com AES-GCM).`, 'color: #a5b4fc');
+
+      // STAGE 2: PROCESSAMENTO (DECRYPT & MAP)
+      // Agora o Worker usa a Shared Secret obtida no Stage 0 para descriptografar o raw
+      const workerResult = await SessionWorkerPipe.process(raw, this.SECRET);
+      console.log(`%c[Stage 2] Worker processado (Payload descriptografado).`, 'color: #a5b4fc');
+
+      // STAGE 3: VALIDAÇÃO
       await this.stageComplianceValidation(workerResult);
 
-      // STAGE 4: Persistência e Finalização (Selo REST)
-      this.service.saveToStorage(raw); 
+      // STAGE 4: FINALIZAÇÃO
       this.stageFinalization(workerResult.session);
-
     } catch (error) {
       this.handleExecutionError(error);
     }
   }
 
-  /**
-   * STAGE 3: Verifica se o objeto processado pelo Worker 
-   * atende aos requisitos mínimos do Prismo.
-   */
   private async stageComplianceValidation(result: any): Promise<void> {
     if (!result.session?.id_prospect) {
-      throw new Error("Falha de conformidade: ID Prospect ausente.");
+      throw new Error('Falha de conformidade: ID Prospect ausente.');
     }
-    
-    // Log de auditoria de peso e densidade recuperados do Worker
     console.log(`[Stage 3] Entropy: ${result.density} | Weight: ${result.weight}kb`);
   }
 
-  /**
-   * STAGE 4: Encerra a esteira e coloca o objeto em repouso.
-   */
   private stageFinalization(session: Session): void {
     this.context.setSession(session);
     console.log(`%c[Stage 4] Finalization: Rota CREATE -> REST.`, 'color: #10b981');
   }
 
   private handleExecutionError(err: any): void {
-    console.error(`%c[Execution Error] Bloqueio Determinístico:`, 'color: #ef4444', err);
-    this.service.clearStorage();
+    console.error(`%c[Execution Error] Bloqueio na Criação:`, 'color: #ef4444', err);
     this.context.clear();
   }
 }
-

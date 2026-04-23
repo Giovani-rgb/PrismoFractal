@@ -6,33 +6,42 @@ import { EncryptedPayload } from '../models/session.model';
 
 @Injectable({ providedIn: 'root' })
 export class SessionService {
-  private readonly API = `${environment.apiUrl}/api/sessions/anonymous`;
+  private readonly API_BASE = `${environment.apiUrl}/api/sessions`;
   private readonly STORAGE_KEY = environment.nameSessionKey;
 
   constructor(private http: HttpClient) {}
 
   /**
-   * MÓDULO DE INGESTÃO (POST)
-   * Cria uma nova sessão enviando um body vazio.
+   * ESTÁGIO 1 & 2: HANDSHAKE DIFFIE-HELLMAN
+   * O Interceptor agora cuida do X-Window-Token automaticamente.
+   * O serviço envia apenas o payload 'B' se ele existir.
    */
-  fetchNewSession(): Observable<EncryptedPayload> {
-    return this.http.post<EncryptedPayload>(this.API, {});
+  publicHandshake(clientB?: string): Observable<any> {
+    const body = clientB ? { B: clientB } : {};
+    
+    // Removido o manuseio manual de HttpHeaders. 
+    // O SessionFlowInterceptor injetará o token se window._sessionToken estiver setado.
+    return this.http.post<any>(`${this.API_BASE}/public`, body);
   }
 
   /**
-   * MÓDULO DE BATIDA (GET)
-   * Renova o ciclo de vida da sessão e os cookies no backend.
-   * Não envia body; a identificação é feita via Cookies.
+   * MÓDULO DE INGESTÃO (POST)
    */
-  refreshSessionCookies(): Observable<void> {
-    return this.http.get<void>(`${this.API}/refresh`, {
-      withCredentials: true // Permite o tráfego de cookies de sessão
+  fetchNewSession(): Observable<EncryptedPayload> {
+    return this.http.post<EncryptedPayload>(`${this.API_BASE}/anonymous`, {});
+  }
+
+  /**
+   * MÓDULO DE REFRESH (POST)
+   */
+  refreshSessionCookies(): Observable<EncryptedPayload> {
+    return this.http.post<EncryptedPayload>(`${this.API_BASE}/refresh`, {}, {
+      withCredentials: true 
     });
   }
 
   /**
-   * PERSISTÊNCIA NO STORAGE
-   * Lida com o Storage "cru" serializando o EncryptedPayload.
+   * PERSISTÊNCIA E STORAGE
    */
   saveToStorage(payload: EncryptedPayload): void {
     if (payload) {
@@ -40,18 +49,18 @@ export class SessionService {
     }
   }
 
-  /**
-   * RECUPERAÇÃO DO STORAGE
-   */
   getFromStorage(): EncryptedPayload | null {
     const data = sessionStorage.getItem(this.STORAGE_KEY);
-    return data ? JSON.parse(data) : null;
+    try {
+      return data ? JSON.parse(data) : null;
+    } catch {
+      return null;
+    }
   }
 
-  /**
-   * PURGE
-   */
   clearStorage(): void {
     sessionStorage.removeItem(this.STORAGE_KEY);
+    // Limpa também o token de memória do interceptor
+    (window as any)._sessionToken = null;
   }
 }
