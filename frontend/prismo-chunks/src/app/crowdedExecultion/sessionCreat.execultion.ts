@@ -50,6 +50,7 @@ console.log('%c[Raw Data]:', 'color: #94a3b8', dhParams);
       // 3. Callback: Envia produto 'B' para o servidor fechar o segredo do lado dele
       await this.orchestrator.executeAssignment({
         B: cryptoSetup.B,
+        sharedSecret: cryptoSetup.sharedSecret
       });
       console.log(
         `%c[Stage 0.3] Handshake finalizado. Canal criptográfico pronto.`,

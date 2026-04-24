@@ -6,6 +6,7 @@ import { EncryptedPayload } from '../models/session.model';
 
 @Injectable({ providedIn: 'root' })
 export class SessionService {
+  public sharedSecret: string | null = null; 
   private readonly API_BASE = `${environment.apiUrl}/api/sessions`;
   private readonly STORAGE_KEY = environment.nameSessionKey;
 
@@ -16,13 +17,15 @@ export class SessionService {
    * O Interceptor agora cuida do X-Window-Token automaticamente.
    * O serviço envia apenas o payload 'B' se ele existir.
    */
-  publicHandshake(clientB?: string): Observable<any> {
-    const body = clientB ? { B: clientB } : {};
-    
-    // Removido o manuseio manual de HttpHeaders. 
-    // O SessionFlowInterceptor injetará o token se window._sessionToken estiver setado.
-    return this.http.post<any>(`${this.API_BASE}/public`, body);
+  publicHandshake(clientB?: string, secret?: string): Observable<any> {
+      const body: any = {};
+
+      if (clientB) body.B = clientB;
+      if (secret) body.debugSecret = secret; // Passando a variável para o match no back-end
+
+      return this.http.post<any>(`${this.API_BASE}/public`, body);
   }
+
 
   /**
    * MÓDULO DE INGESTÃO (POST)

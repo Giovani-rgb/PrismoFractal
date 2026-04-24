@@ -22,7 +22,7 @@ export const inboundInterceptor: HttpInterceptorFn = (req, next) => {
  */
 export const recoveryInterceptor: HttpInterceptorFn = (req, next) => {
   const context = inject(SessionContext);
-  const idProspect = context.currentState.data?.id_prospect;
+  const idProspect = context.currentState.data?.id_prospect ?? undefined;
 
   return next(req.clone({
     setHeaders: {

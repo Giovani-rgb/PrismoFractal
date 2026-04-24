@@ -28,41 +28,72 @@ public class SessionController {
         this.service = service;
         this.responseQueries = responseQueries;
     }
-
-    /**
-     * ROTA PUBLIC: Estabelece a conexão segura via Diffie-Hellman.
-     * * Estágio 1: Cliente envia corpo vazio -> Recebe p, g, A (produto do servidor) e windowToken.
-     * Estágio 2: Cliente envia B (seu produto) + windowToken -> Finaliza a Shared Secret no servidor.
-     */
     @PostMapping("/public")
     public ResponseEntity<Map<String, Object>> establishPublicHandshake(
             @RequestBody(required = false) Map<String, String> clientPayload,
             @RequestHeader(value = "X-Window-Token", required = false) String windowToken
     ) {
-        // Se não há Payload ou Chave do Cliente, estamos no ESTÁGIO 1 (O Drop inicial)
-        if (clientPayload == null || !clientPayload.containsKey("B")) {
-            // Gera p, g e o produto A (g^a mod p)
-            Map<String, Object> dhParams = service.generateServerHandshake();
-            
-            // Cria a janela de reentrada para identificar esta negociação
-            String newToken = service.generateReentryWindow();
-            dhParams.put("windowToken", newToken);
-            
-            return ResponseEntity.ok(dhParams);
-        }
+        try {
+            // ESTÁGIO 1: Drop inicial
+            if (clientPayload == null || !clientPayload.containsKey("B")) {
+                // ... (Mantenha o log do Stage 1 como está, ele está ótimo)
+                Map<String, Object> dhParams = service.generateServerHandshake();
+                String newToken = service.generateReentryWindow();
+                service.saveHandshakeContext(newToken, dhParams); 
+                dhParams.put("windowToken", newToken);
+                return ResponseEntity.ok(dhParams);
+            }
 
-        // Se há chave B, estamos no ESTÁGIO 2 (O Callback)
-        if (windowToken == null || windowToken.isBlank()) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("error", "X-Window-Token ausente."));
-        }
-        service.consumeReentryWindow(windowToken);
-        
-        // Finaliza o cálculo matemático: S = B^a mod p
-        service.finalizeSharedSecret(windowToken, clientPayload.get("B"));
+            // ESTÁGIO 2: O Callback (B + Token)
+            String clientB = clientPayload.get("B");
 
-        return ResponseEntity.ok(Map.of("status", "established"));
+            System.out.println("\n\n");
+            System.out.println("================================================================================");
+            System.out.println(">>> [HANDSHAKE STAGE 2]: INTERCEPTAÇÃO DE SEGURANÇA");
+            System.out.println(">>> Token do Header: " + windowToken);
+            System.out.println(">>> Chave 'B' do Cliente: " + clientB);
+            System.out.println("--------------------------------------------------------------------------------");
+
+            if (windowToken == null || windowToken.isBlank()) {
+                System.err.println("!!! [ALERTA]: Tentativa de Stage 2 sem X-Window-Token");
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", "Token ausente."));
+            }
+
+            // 1. Calcula o segredo
+            service.finalizeSharedSecret(windowToken, clientB);
+
+            // 2. BUSCA O SEGREDO PARA LOG (Faça isso ANTES de consumir a janela)
+            // Assumindo que seu service agora tem um método para recuperar o que foi calculado
+            String secretCalculated = service.getSecretByToken(windowToken); 
+
+            System.out.println(">>> [MATCH CHECK] VALOR CALCULADO NO JAVA:");
+            System.out.println(">>> SHARED SECRET: " + (secretCalculated != null ? secretCalculated : "NÃO ENCONTRADO/NULO"));
+            System.out.println("--------------------------------------------------------------------------------");
+
+            // 3. Agora sim, mata a janela/contexto se necessário
+            System.out.println(">>> Consumindo Reentry Window (Limpando contexto)...");
+            service.consumeReentryWindow(windowToken);
+
+            Map<String, Object> responseBody = Map.of(
+                "status", "established",
+                "fingerprint", (secretCalculated != null && secretCalculated.length() > 8) 
+                                ? secretCalculated.substring(0, 8) : "error"
+            );
+
+            System.out.println(">>> [FINALIZADO]: Enviando confirmação ao cliente com Fingerprint.");
+            System.out.println("================================================================================");
+            System.out.println("\n\n");
+
+            return ResponseEntity.ok(responseBody);
+
+        } catch (Exception e) {
+            // ... (Seu bloco catch de erro está perfeito)
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", e.getMessage()));
+        }
     }
+
+
+
 
     /**
      * ROTA REFRESH: Atualiza os claims do token através do Cookie.

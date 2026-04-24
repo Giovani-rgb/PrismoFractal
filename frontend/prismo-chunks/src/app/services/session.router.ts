@@ -20,16 +20,10 @@ export interface PipelineRoute {
 
 export class SessionRouter {
     private static readonly routes: Map<SessionTag, PipelineRoute> = new Map([
-      /**
-       * MÓDULO PUBLIC (HANDSHAKE)
-       * Rota de infraestrutura matemática: Não possui interceptor pois
-       * estabelece a segurança que os interceptores validariam depois.
-       */
       [SessionTag.PUBLIC, {
         tag: SessionTag.PUBLIC,
         method: 'POST',
-        // O handler aceita o payload para o callback do produto 'B'
-        handler: (s, p) => s.publicHandshake(p?.B),
+        handler: (s, p) => s.publicHandshake(p?.B, s.sharedSecret),
         interceptor: sessionFlowInterceptor 
       }],
 
@@ -42,7 +36,7 @@ export class SessionRouter {
 
       [SessionTag.REHYDRATE, {
         tag: SessionTag.REHYDRATE,
-        method: 'POST', // Alinhado com a mudança para POST no Service/Controller
+        method: 'POST',
         handler: (s) => s.refreshSessionCookies(),
         interceptor: recoveryInterceptor 
       }],
@@ -55,10 +49,6 @@ export class SessionRouter {
       }]
     ]);
 
-  /**
-   * MÓDULO DE DELEGAÇÃO:
-   * Recebe a SessionTag do Orquestrador e devolve o contrato.
-   */
   static resolvePipeline(tag: SessionTag): PipelineRoute | undefined {
     return this.routes.get(tag);
   }
