@@ -43,3 +43,21 @@ export interface EncryptedPayload {
   ciphertext: string;
   iv: string;
 }
+
+export interface DiffieHellmanModel {
+  p: string;  // Módulo Primo (Hex)
+  g: string;  // Gerador (Hex)
+  _b: string; // Expoente Privado do Cliente (Hex) - O "segredo"
+  B: string;  // Chave Pública do Cliente (Hex) - Produto: g^_b mod p
+}
+
+/**
+ * DTO para o transporte entre Worker e Main Thread
+ */
+export interface DHResult {
+  success: boolean;
+  B?: string;
+  _b?: string;      // Retornado para o Service guardar em memória
+  sharedSecret?: string;
+  error?: string;
+}

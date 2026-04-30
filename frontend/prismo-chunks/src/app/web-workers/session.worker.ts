@@ -1,10 +1,19 @@
 /// <reference lib="webworker" />
 import { decryptData } from '../helpers/session.helpers';
+import { DiffieHellmanModel, DHResult } from '../models/session.model';
 
 addEventListener('message', async ({ data }) => {
   const { action } = data;
 
   try {
+    // NOVA AÇÃO: Estágio inicial para gerar B e preencher o modelo
+    if (action === 'STAGE_DH') {
+      const model = await handleStageDH(data);
+      postMessage({ success: true, data: model } as DHResult);
+      return;
+    }
+
+    // AÇÃO ORIGINAL: Cálculo imediato do Segredo (se necessário)
     if (action === 'HANDSHAKE') {
       const result = await handleHandshake(data);
       postMessage({ success: true, ...result });
@@ -20,49 +29,69 @@ addEventListener('message', async ({ data }) => {
     throw new Error(`Ação desconhecida: ${action}`);
 
   } catch (error: any) {
-    postMessage({ success: false, error: error.message });
+    postMessage({ success: false, error: error.message } as DHResult);
   }
 });
 
 /**
- * CÁLCULO MATEMÁTICO DIFFIE-HELLMAN (Stage 0.2)
- * Realiza a interação secreta do cliente usando BigInt.
+ * STAGE_DH: Geração do material do cliente (Stage 1)
+ * Retorna o DiffieHellmanModel preenchido com _b e B.
+ */
+async function handleStageDH(params: { p: string, g: string }): Promise<DiffieHellmanModel> {
+  const p = BigInt('0x' + params.p);
+  const g = BigInt(params.g);
+
+  // 1. Gera o segredo privado '_b' (2048 bits)
+  const bBytes = new Uint8Array(256);
+  self.crypto.getRandomValues(bBytes);
+  const _bBig = BigInt('0x' + Array.from(bBytes).map(b => b.toString(16).padStart(2, '0')).join('')) % p;
+
+  // 2. Calcula B = g^_b mod p
+  const BBig = power(g, _bBig, p);
+
+  // 3. Monta e retorna o modelo DH exato
+  return {
+    p: params.p,
+    g: params.g,
+    _b: _bBig.toString(16).toLowerCase(),
+    B: BBig.toString(16).toLowerCase()
+  };
+}
+
+/**
+ * CÁLCULO MATEMÁTICO DIFFIE-HELLMAN (Stage 2)
+ * Pode ser chamado separadamente enviando o modelo salvo no contexto.
  */
 async function handleHandshake(params: any) {
   const p = BigInt('0x' + params.p);
   const g = BigInt(params.g);
   const A = BigInt('0x' + params.A);
-
-  // 1. Gera a interação secreta do cliente 'b'
-  // Usamos Crypto API para aleatoriedade forte
-  const bBytes = new Uint8Array(256); // 2048 bits
-  self.crypto.getRandomValues(bBytes);
-  const b = BigInt('0x' + Array.from(bBytes).map(b => b.toString(16).padStart(2, '0')).join('')) % p;
-
+  
+  // Se vier um _b no params, usamos ele, senão geramos um novo (fallback)
+  let b: bigint;
+  if (params._b) {
+    b = BigInt('0x' + params._b);
+  } else {
+    const bBytes = new Uint8Array(256);
+    self.crypto.getRandomValues(bBytes);
+    b = BigInt('0x' + Array.from(bBytes).map(b => b.toString(16).padStart(2, '0')).join('')) % p;
+  }
 
   const B = power(g, b, p);
   const S = power(A, b, p);
 
-  // Garantimos que a string HEX não tenha caracteres estranhos e seja minúscula
-  const bHex = B.toString(16).toLowerCase();
-  const sHex = S.toString(16).toLowerCase();
-
   return {
-    B: bHex,
-    sharedSecret: sHex
+    B: B.toString(16).toLowerCase(),
+    sharedSecret: S.toString(16).toLowerCase(),
+    _b: b.toString(16).toLowerCase()
   };
 }
 
-
-
-
 /**
- * PROCESSAMENTO DE SESSÃO (Stage 2)
+ * PROCESSAMENTO DE SESSÃO (Decrypt & Porta XOR)
  */
 async function handleProcessSession(data: any) {
   const { raw, secret } = data;
-  
-  // 1. Descriptografia (AES-GCM)
   const session = await decryptData(raw, secret);
 
   if (session) {
@@ -71,7 +100,6 @@ async function handleProcessSession(data: any) {
     session.lastAccessAt = transformJavaDate(session.lastAccessAt);
   }
 
-  // 2. Validação de Entropia (Porta XOR)
   const size = new Blob([JSON.stringify(session)]).size;
   const density = Math.log(size || 1);
 
@@ -87,8 +115,7 @@ async function handleProcessSession(data: any) {
 }
 
 /**
- * Função auxiliar para Exponenciação Modular (BigInt)
- * Calcula (base ^ exp) % mod de forma eficiente.
+ * Auxiliar: Exponenciação Modular
  */
 function power(base: bigint, exp: bigint, mod: bigint): bigint {
   let res = BigInt(1);

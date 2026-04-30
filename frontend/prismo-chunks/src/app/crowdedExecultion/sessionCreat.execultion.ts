@@ -15,27 +15,26 @@ export class SessionCreationExecution {
   async execute(): Promise<void> {
     try {
       // --- STAGE 0: HANDSHAKE MATEMÁTICO (AES-GCM PREP) ---
-      // Definimos a Tag para PUBLIC para o Orquestrador saber qual contrato usar
       this.context.setOperation(SessionTag.PUBLIC);
 
       // 1. Drop inicial: Pega p, g, A do servidor
       const dhParams = await this.orchestrator.executeAssignment();
 
-console.log(`%c[Stage 0.1] Parâmetros DH recebidos. Drop A detectado.`, 'color: #fbbf24');
-console.log('%c[Raw Data]:', 'color: #94a3b8', dhParams);
+      console.log(`%c[Stage 0.1] Parâmetros DH recebidos. Drop A detectado.`, 'color: #fbbf24');
+      console.log('%c[Raw Data]:', 'color: #94a3b8', dhParams);
     
-
       // 2. REGISTRO IMEDIATO: O Interceptor precisa ler isso AGORA
       (window as any)._sessionToken = dhParams.windowToken;
 
+      // 2.1 Worker Calcula: Gera o B e o segredo privado através do modelo DH
+      const dhContext = await SessionWorkerPipe.stage_dh({
+        p: dhParams.p,
+        g: dhParams.g
+      });
 
-      
+      // 2.2 Calcula a Shared Secret usando o A do servidor e o contexto gerado
+      const cryptoSetup = await SessionWorkerPipe.calculateDH(dhParams.A, dhContext);
 
-      // 2.1 Worker Calcula: Gera produto 'B' e a Shared Secret (Key para AES-GCM)
-
-      const cryptoSetup = await SessionWorkerPipe.calculateDH(dhParams);
-
-      // --- ADICIONE ESTA LINHA PARA DEBUG ---
       console.log(
         `%c[DEBUG] Shared Secret Key:`,
         'color: #00ff00; font-weight: bold',
@@ -47,11 +46,12 @@ console.log('%c[Raw Data]:', 'color: #94a3b8', dhParams);
         'color: #fbbf24',
       );
 
-      // 3. Callback: Envia produto 'B' para o servidor fechar o segredo do lado dele
+      // 3. Callback: Envia produto 'B' e o segredo para o servidor fechar o lado dele
       await this.orchestrator.executeAssignment({
-        B: cryptoSetup.B,
+        B: dhContext.B,
         sharedSecret: cryptoSetup.sharedSecret
       });
+
       console.log(
         `%c[Stage 0.3] Handshake finalizado. Canal criptográfico pronto.`,
         'color: #fbbf24',
@@ -63,7 +63,7 @@ console.log('%c[Raw Data]:', 'color: #94a3b8', dhParams);
       console.log(`%c[Stage 1] Inbound detectado (Cifrado com AES-GCM).`, 'color: #a5b4fc');
 
       // STAGE 2: PROCESSAMENTO (DECRYPT & MAP)
-      // Agora o Worker usa a Shared Secret obtida no Stage 0 para descriptografar o raw
+      // Mantido o uso da SECRET do environment conforme solicitado
       const workerResult = await SessionWorkerPipe.process(raw, this.SECRET);
       console.log(`%c[Stage 2] Worker processado (Payload descriptografado).`, 'color: #a5b4fc');
 

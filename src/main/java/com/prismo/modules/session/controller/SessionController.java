@@ -28,69 +28,53 @@ public class SessionController {
         this.service = service;
         this.responseQueries = responseQueries;
     }
+
     @PostMapping("/public")
-    public ResponseEntity<Map<String, Object>> establishPublicHandshake(
-            @RequestBody(required = false) Map<String, String> clientPayload,
-            @RequestHeader(value = "X-Window-Token", required = false) String windowToken
-    ) {
-        try {
-            // ESTÁGIO 1: Drop inicial
-            if (clientPayload == null || !clientPayload.containsKey("B")) {
-                // ... (Mantenha o log do Stage 1 como está, ele está ótimo)
-                Map<String, Object> dhParams = service.generateServerHandshake();
-                String newToken = service.generateReentryWindow();
-                service.saveHandshakeContext(newToken, dhParams); 
-                dhParams.put("windowToken", newToken);
-                return ResponseEntity.ok(dhParams);
-            }
-
-            // ESTÁGIO 2: O Callback (B + Token)
-            String clientB = clientPayload.get("B");
-
-            System.out.println("\n\n");
-            System.out.println("================================================================================");
-            System.out.println(">>> [HANDSHAKE STAGE 2]: INTERCEPTAÇÃO DE SEGURANÇA");
-            System.out.println(">>> Token do Header: " + windowToken);
-            System.out.println(">>> Chave 'B' do Cliente: " + clientB);
-            System.out.println("--------------------------------------------------------------------------------");
-
-            if (windowToken == null || windowToken.isBlank()) {
-                System.err.println("!!! [ALERTA]: Tentativa de Stage 2 sem X-Window-Token");
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", "Token ausente."));
-            }
-
-            // 1. Calcula o segredo
-            service.finalizeSharedSecret(windowToken, clientB);
-
-            // 2. BUSCA O SEGREDO PARA LOG (Faça isso ANTES de consumir a janela)
-            // Assumindo que seu service agora tem um método para recuperar o que foi calculado
-            String secretCalculated = service.getSecretByToken(windowToken); 
-
-            System.out.println(">>> [MATCH CHECK] VALOR CALCULADO NO JAVA:");
-            System.out.println(">>> SHARED SECRET: " + (secretCalculated != null ? secretCalculated : "NÃO ENCONTRADO/NULO"));
-            System.out.println("--------------------------------------------------------------------------------");
-
-            // 3. Agora sim, mata a janela/contexto se necessário
-            System.out.println(">>> Consumindo Reentry Window (Limpando contexto)...");
-            service.consumeReentryWindow(windowToken);
-
-            Map<String, Object> responseBody = Map.of(
-                "status", "established",
-                "fingerprint", (secretCalculated != null && secretCalculated.length() > 8) 
-                                ? secretCalculated.substring(0, 8) : "error"
-            );
-
-            System.out.println(">>> [FINALIZADO]: Enviando confirmação ao cliente com Fingerprint.");
-            System.out.println("================================================================================");
-            System.out.println("\n\n");
-
-            return ResponseEntity.ok(responseBody);
-
-        } catch (Exception e) {
-            // ... (Seu bloco catch de erro está perfeito)
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", e.getMessage()));
+public ResponseEntity<Map<String, Object>> establishPublicHandshake(
+        @RequestBody(required = false) Map<String, String> clientPayload,
+        @RequestHeader(value = "X-Window-Token", required = false) String windowToken
+) {
+    try {
+        // ESTÁGIO 1: Drop inicial (p, g, A) + Window Token
+        if (clientPayload == null || !clientPayload.containsKey("B")) {
+            Map<String, Object> dhParams = service.generateServerHandshake();
+            return ResponseEntity.ok(dhParams);
         }
+
+        // ESTÁGIO 2: O Callback (Validação Matemática + Comportamental)
+        String clientB = clientPayload.get("B");
+        String debugSecretFromClient = clientPayload.get("debugSecret");
+
+        if (windowToken == null || windowToken.isBlank()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", "Token de janela ausente."));
+        }
+
+        // O Service aqui fará 3 coisas:
+        // 1. Validar se o token existe e não expirou (45s).
+        // 2. Validar se o cliente esperou o tempo mínimo aleatório (Anti-Bot).
+        // 3. Calcular o segredo compartilhado e remover o token da memória.
+        service.finalizeSharedSecret(windowToken, clientB);
+
+        // Busca o segredo calculado para bater com o que o cliente enviou (debug)
+        String secretCalculated = service.getSecretByToken(windowToken); 
+
+        boolean isMatch = secretCalculated != null && secretCalculated.equalsIgnoreCase(debugSecretFromClient);
+
+        return ResponseEntity.ok(Map.of(
+            "status", "established",
+            "match", isMatch,
+            "message", isMatch ? "Túnel seguro estabelecido." : "Falha na sincronia de chaves."
+        ));
+
+    } catch (RuntimeException e) {
+        // Captura erros de "Resposta rápida demais", "Timeout" ou "Token inválido"
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", e.getMessage()));
+    } catch (Exception e) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", "Erro interno no handshake."));
     }
+}
+
+
 
 
 
