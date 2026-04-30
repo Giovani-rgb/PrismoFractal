@@ -141,7 +141,14 @@ public class ServiceSession {
             throw new RuntimeException("Violação de integridade: Resposta rápida demais.");
         }
 
-        // 3. Delay artificial/**
+        // 3. Delay artificial interno (faz o cliente sentir o "peso" do servidor)
+        try {
+            Thread.sleep(meta.internalProcessDelay());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Janela interrompida durante o delay artificial.");
+        }
+    }
 
     public Session createAnonymous(String ipAddress, String userAgent) {
         UUID sessionId = UUID.randomUUID();
