@@ -169,16 +169,21 @@ public class ServiceSession {
      * Emite o token de passagem (TTL 15s) após o handshake DH ser concluído.
      * O cliente deve apresentá-lo no header X-Anonymous-Token para acessar /anonymous.
      */
-    public String issueAnonymousPassToken() {
-        return cryptoHelper.issueAnonymousToken();
-    }
+    
+    
 
-    /**
-     * Valida e consome o token de passagem — bloqueia /anonymous sem ele.
-     */
-    public void consumeAnonymousPassToken(String token) {
-        cryptoHelper.consumeAnonymousToken(token);
-    }
+
+
+    public Map<String, Object> issueAnonymousPassToken() {
+    // Delega a criação, o registro no mapa e o cálculo do minWait totalmente para o Helper
+    return cryptoHelper.generateAnonymousToken();
+}
+
+public void consumeAnonymousPassToken(String token) {
+    // Delega a validação (Timing + Expiração) e a remoção do mapa para o Helper
+    cryptoHelper.consumeAnonymousToken(token);
+}
+
 
     public Session refreshSessionData(String sessionCipher) {
         return repository.findAll().stream()

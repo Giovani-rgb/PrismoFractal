@@ -7,6 +7,7 @@ import java.math.BigInteger;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -23,8 +24,8 @@ public class CryptoHelper {
     private final Map<String, String> activeSecrets = new ConcurrentHashMap<>();
 
     // Tokens de passagem: emitidos na saída de /public, consumidos na entrada de /anonymous
-    private final Map<String, LocalDateTime> anonymousPassTokens = new ConcurrentHashMap<>();
-
+    private final Map<String, AnonymousMetadata> anonymousPassTokens = new ConcurrentHashMap<>();
+    
     private static final BigInteger P_DH = new BigInteger(
             "FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD1" +
             "29024E088A67CC74020BBEA63B139B22514A08798E3404DD" +
@@ -44,6 +45,9 @@ public class CryptoHelper {
             double minWait,
             long internalDelay,
             long createdAtMillis) {}
+    
+    // Record específico para a janela de Anonymous
+    public record AnonymousMetadata(LocalDateTime expiresAt, double minWait, long createdAtMillis) {}
 
     public WindowMetadata createNewWindow(String token) {
         double minWait = 2.80 + (0.30 * secureRandom.nextDouble()); // Entre 2.8 e 3.1s
@@ -89,28 +93,41 @@ public class CryptoHelper {
      * Emite um token de passagem de uso único com TTL de 15 segundos.
      * Chamado na saída do Stage 2 de /public.
      */
-    public String issueAnonymousToken() {
-        String token = java.util.UUID.randomUUID().toString();
-        anonymousPassTokens.put(token, LocalDateTime.now().plusSeconds(15));
-        return token;
+    /**
+     * Gera o token de passagem e registra no mapa dedicado.
+     */
+    public Map<String, Object> generateAnonymousToken() {
+        String token = UUID.randomUUID().toString();
+        double minWait = 2.80 + (0.30 * secureRandom.nextDouble());
+
+        anonymousPassTokens.put(token, new AnonymousMetadata(
+                LocalDateTime.now().plusSeconds(15), // Expiração de 15s conforme solicitado
+                minWait,
+                System.currentTimeMillis()
+        ));
+
+        return Map.of(
+            "anonymousToken", token,
+            "minWait", minWait,
+            "status", "established"
+        );
     }
 
     /**
-     * Valida e consome o token de passagem.
-     * Lança RuntimeException se ausente ou expirado — bloqueando /anonymous.
+     * Consome o token de passagem validando timing e expiração.
      */
     public void consumeAnonymousToken(String token) {
-        if (token == null || token.isBlank()) {
-            throw new RuntimeException("Token de passagem ausente.");
-        }
-        LocalDateTime expiry = anonymousPassTokens.remove(token);
-        if (expiry == null) {
-            throw new RuntimeException("Token de passagem inválido ou já utilizado.");
-        }
-        if (LocalDateTime.now().isAfter(expiry)) {
-            throw new RuntimeException("Token de passagem expirado (15s).");
-        }
+        AnonymousMetadata meta = anonymousPassTokens.remove(token);
+
+        if (meta == null) throw new RuntimeException("Token de passagem inválido ou já utilizado.");
+        if (LocalDateTime.now().isAfter(meta.expiresAt())) throw new RuntimeException("Token expirado (15s).");
+
+        double elapsed = (System.currentTimeMillis() - meta.createdAtMillis()) / 1000.0;
+        if (elapsed < meta.minWait()) throw new RuntimeException("Resposta para rota anonymous rápida demais.");
+
+        try { Thread.sleep(20); } catch (InterruptedException ignored) {}
     }
+
 
     public void fullCleanup(String token) {
         dhContexts.remove(token);

@@ -53,12 +53,14 @@ public class SessionController {
 
             service.finalizeSharedSecret(windowToken, clientPayload.get("B"));
 
-            String anonymousToken = service.issueAnonymousPassToken();
+            // Agora o issue retorna um Map ou um objeto com o Token e o Tempo
+Map<String, Object> anonymousData = service.issueAnonymousPassToken();
 
-            return ResponseEntity.ok(Map.of(
-                    "status", "established",
-                    "anonymousToken", anonymousToken
-            ));
+return ResponseEntity.ok(Map.of(
+        "status", "established",
+        "anonymousToken", anonymousData.get("token"),
+        "minWait", anonymousData.get("minWait") // Tempo para a próxima chamada
+));
 
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)

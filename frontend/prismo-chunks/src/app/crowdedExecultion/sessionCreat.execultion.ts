@@ -17,68 +17,63 @@ export class SessionCreationExecution {
    */
   async execute(): Promise<void> {
     try {
-      // --- STAGE 0: HANDSHAKE MATEMÁTICO (AES-GCM PREP) ---
+      // --- STAGE 0: HANDSHAKE MATEMÁTICO ---
       this.context.setOperation(SessionTag.PUBLIC);
 
-      // 1. Drop inicial: Recebe p, g, A, windowToken e minWait do Java
+      // 1. Drop inicial (p, g, A, windowToken, minWait)
       const dhParams = await this.orchestrator.executeAssignment();
-      const startTime = Date.now(); // Marca o início para validar a janela de tempo
+      const startTime = Date.now();
 
       console.log(`%c[Stage 0.1] Handshake iniciado. Token: ${dhParams.windowToken}`, 'color: #fbbf24');
-      console.log(`%c[Anti-Bot] Tempo mínimo exigido pelo servidor: ${dhParams.minWait}s`, 'color: #60a5fa');
-    
-      // 2. Registro do token para que o Interceptor o envie no header 'X-Window-Token'
       (window as any)._sessionToken = dhParams.windowToken;
 
-      // 3. Worker Calcula: Gera o produto B (público do cliente)
-      const dhContext = await SessionWorkerPipe.stage_dh({
-        p: dhParams.p,
-        g: dhParams.g
-      });
+      // 2. Worker Calcula: B e Shared Secret
+      const dhContext = await SessionWorkerPipe.stage_dh({ p: dhParams.p, g: dhParams.g });
+      await SessionWorkerPipe.calculateDH(dhParams.A, dhContext);
 
-      // 4. Calcula a Shared Secret (S) usando o A do servidor
-      const cryptoSetup = await SessionWorkerPipe.calculateDH(dhParams.A, dhContext);
-      // agente pode apenas logar o cryptoSetup com o Shared Secret para debug 
+      // 3. Compliance Temporal do Primeiro Handshake
+      const elapsedFirst = (Date.now() - startTime) / 1000;
+      const waitFirst = (dhParams.minWait || 2.9) - elapsedFirst;
 
-      console.log(`%c[Stage 0.2] Shared Secret gerada localmente.`, 'color: #fbbf24');
-
-      // --- LÓGICA DE COMPLIANCE TEMPORAL (ANTI-BOT) ---
-      // Verificamos quanto tempo passou desde o drop inicial
-      const elapsedSeconds = (Date.now() - startTime) / 1000;
-      const waitTime = (dhParams.minWait || 2.9) - elapsedSeconds;
-
-      if (waitTime > 0) {
-        console.log(`%c[Anti-Bot] Aguardando ${waitTime.toFixed(2)}s para satisfazer a política do servidor...`, 'color: #60a5fa');
-        await new Promise(resolve => setTimeout(resolve, waitTime * 1000));
+      if (waitFirst > 0) {
+        console.log(`%c[Anti-Bot] Aguardando ${waitFirst.toFixed(2)}s...`, 'color: #60a5fa');
+        await new Promise(resolve => setTimeout(resolve, waitFirst * 1000));
       }
 
-      // 5. STAGE 2 (CALLBACK): Envia B — servidor valida a janela comportamental
-      //    e emite o anonymousToken (TTL 15s) para liberação de /anonymous
-      const stage2Response = await this.orchestrator.executeAssignment({
-        B: dhContext.B
-      });
+      // 4. Envio de B para validação e recebimento do AnonymousToken + novo minWait
+      const stage2Response = await this.orchestrator.executeAssignment({ B: dhContext.B });
 
-    // preciso ver o que recebo em stage2Response
-      // Registra o token de passagem para que o interceptor o envie em X-Anonymous-Token
+      if (!stage2Response || stage2Response.status !== "established") {
+        throw new Error('Falha ao estabelecer túnel seguro: Status inválido.');
+      }
+
+      // --- STAGE 1: PREPARAÇÃO PARA /ANONYMOUS ---
       (window as any)._anonymousToken = stage2Response.anonymousToken;
+      const nextWait = stage2Response.minWait || 2.8;
+      const startAnonymousClock = Date.now();
 
-      console.log(`%c[Stage 0.3] Handshake finalizado. Token de passagem emitido.`, 'color: #fbbf24');
+      console.log(`%c[Stage 0.3] Token de passagem: ${stage2Response.anonymousToken}`, 'color: #fbbf24');
+      console.log(`%c[Anti-Bot] Janela para /anonymous: ${nextWait}s`, 'color: #60a5fa');
 
-      // --- STAGE 1: INGESTÃO (CREATE) ---
-      // Agora que o canal está pronto, pedimos a criação da sessão
+      // 5. Compliance Temporal para a rota CREATE
       this.context.setOperation(SessionTag.CREATE);
+
+      const elapsedSecond = (Date.now() - startAnonymousClock) / 1000;
+      const remaining = nextWait - elapsedSecond;
+
+      if (remaining > 0) {
+        await new Promise(resolve => setTimeout(resolve, remaining * 1000));
+      }
+
+      // 6. Ingestão da Sessão Cifrada
       const raw = await this.orchestrator.executeAssignment();
-      
-      console.log(`%c[Stage 1] Payload de sessão recebido (Cifrado).`, 'color: #a5b4fc');
+      console.log(`%c[Stage 1] Payload recebido.`, 'color: #a5b4fc');
 
-      // STAGE 2: PROCESSAMENTO (DECRYPT & MAP)
+      // 7. Processamento e Descriptografia
       const workerResult = await SessionWorkerPipe.process(raw, this.SECRET);
-      console.log(`%c[Stage 2] Descriptografia concluída via Worker.`, 'color: #a5b4fc');
-
-      // STAGE 3: VALIDAÇÃO DE CONFORMIDADE
+      
+      // 8. Validação e Finalização
       await this.stageComplianceValidation(workerResult);
-
-      // STAGE 4: FINALIZAÇÃO
       this.stageFinalization(workerResult.session);
 
     } catch (error) {
@@ -88,22 +83,23 @@ export class SessionCreationExecution {
 
   private async stageComplianceValidation(result: any): Promise<void> {
     if (!result.session?.id_prospect) {
-      throw new Error('Falha de conformidade: Atributos de sessão incompletos.');
+      throw new Error('Atributos de sessão incompletos.');
     }
-    console.log(`[Stage 3] Conformidade OK. Densidade: ${result.density}`);
+    console.log(`[Stage 3] Conformidade OK.`);
   }
 
   private stageFinalization(session: Session): void {
     this.context.setSession(session);
-    console.log(`%c[Stage 4] Sessão ativa e injetada no contexto.`, 'color: #10b981');
+    console.log(`%c[Stage 4] Sessão ativa.`, 'color: #10b981');
   }
 
   private handleExecutionError(err: any): void {
     const errorMsg = err.error?.error || err.message || 'Erro desconhecido';
-    console.error(`%c[Execution Error] Bloqueio no Pipeline: ${errorMsg}`, 'color: #ef4444');
+    console.error(`%c[Execution Error] Bloqueio: ${errorMsg}`, 'color: #ef4444');
+    
     this.context.clear();
-    // Limpa ambos os tokens para forçar novo handshake completo
     (window as any)._sessionToken = null;
     (window as any)._anonymousToken = null;
   }
 }
+
