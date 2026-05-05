@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "B3ZiQ0wz6xGlqrYkzzYwt"
+uri = "file://README.md"
+type = "text"
+title = "README — PRISMO"
