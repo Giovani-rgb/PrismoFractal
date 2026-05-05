@@ -12,66 +12,71 @@ export class SessionCreationExecution {
   private orchestrator = inject(SessionPipelineOrchestrator);
   private context = inject(SessionContext);
 
+  /**
+   * Executa o fluxo completo de criação de sessão com Handshake DH e Anti-Bot.
+   */
   async execute(): Promise<void> {
     try {
       // --- STAGE 0: HANDSHAKE MATEMÁTICO (AES-GCM PREP) ---
       this.context.setOperation(SessionTag.PUBLIC);
 
-      // 1. Drop inicial: Pega p, g, A do servidor
+      // 1. Drop inicial: Recebe p, g, A, windowToken e minWait do Java
       const dhParams = await this.orchestrator.executeAssignment();
+      const startTime = Date.now(); // Marca o início para validar a janela de tempo
 
-      console.log(`%c[Stage 0.1] Parâmetros DH recebidos. Drop A detectado.`, 'color: #fbbf24');
-      console.log('%c[Raw Data]:', 'color: #94a3b8', dhParams);
+      console.log(`%c[Stage 0.1] Handshake iniciado. Token: ${dhParams.windowToken}`, 'color: #fbbf24');
+      console.log(`%c[Anti-Bot] Tempo mínimo exigido pelo servidor: ${dhParams.minWait}s`, 'color: #60a5fa');
     
-      // 2. REGISTRO IMEDIATO: O Interceptor precisa ler isso AGORA
+      // 2. Registro do token para que o Interceptor o envie no header 'X-Window-Token'
       (window as any)._sessionToken = dhParams.windowToken;
 
-      // 2.1 Worker Calcula: Gera o B e o segredo privado através do modelo DH
+      // 3. Worker Calcula: Gera o produto B (público do cliente)
       const dhContext = await SessionWorkerPipe.stage_dh({
         p: dhParams.p,
         g: dhParams.g
       });
 
-      // 2.2 Calcula a Shared Secret usando o A do servidor e o contexto gerado
+      // 4. Calcula a Shared Secret (S) usando o A do servidor
       const cryptoSetup = await SessionWorkerPipe.calculateDH(dhParams.A, dhContext);
 
-      console.log(
-        `%c[DEBUG] Shared Secret Key:`,
-        'color: #00ff00; font-weight: bold',
-        cryptoSetup.sharedSecret,
-      );
+      console.log(`%c[Stage 0.2] Shared Secret gerada localmente.`, 'color: #fbbf24');
 
-      console.log(
-        `%c[Stage 0.2] Produto B gerado via Worker. Shared Secret calculada.`,
-        'color: #fbbf24',
-      );
+      // --- LÓGICA DE COMPLIANCE TEMPORAL (ANTI-BOT) ---
+      // Verificamos quanto tempo passou desde o drop inicial
+      const elapsedSeconds = (Date.now() - startTime) / 1000;
+      const waitTime = (dhParams.minWait || 2.9) - elapsedSeconds;
 
-      // 3. Callback: Envia produto 'B' e o segredo para o servidor fechar o lado dele
+      if (waitTime > 0) {
+        console.log(`%c[Anti-Bot] Aguardando ${waitTime.toFixed(2)}s para satisfazer a política do servidor...`, 'color: #60a5fa');
+        await new Promise(resolve => setTimeout(resolve, waitTime * 1000));
+      }
+
+      // 5. STAGE 2 (CALLBACK): Envia B e o segredo calculado para conferência
+      // Chave 'debugSecret' deve bater com o clientPayload.get("debugSecret") do Java
       await this.orchestrator.executeAssignment({
         B: dhContext.B,
-        sharedSecret: cryptoSetup.sharedSecret
+        debugSecret: cryptoSetup.sharedSecret
       });
 
-      console.log(
-        `%c[Stage 0.3] Handshake finalizado. Canal criptográfico pronto.`,
-        'color: #fbbf24',
-      );
+      console.log(`%c[Stage 0.3] Handshake finalizado. Match confirmado no servidor.`, 'color: #fbbf24');
 
       // --- STAGE 1: INGESTÃO (CREATE) ---
+      // Agora que o canal está pronto, pedimos a criação da sessão
       this.context.setOperation(SessionTag.CREATE);
       const raw = await this.orchestrator.executeAssignment();
-      console.log(`%c[Stage 1] Inbound detectado (Cifrado com AES-GCM).`, 'color: #a5b4fc');
+      
+      console.log(`%c[Stage 1] Payload de sessão recebido (Cifrado).`, 'color: #a5b4fc');
 
       // STAGE 2: PROCESSAMENTO (DECRYPT & MAP)
-      // Mantido o uso da SECRET do environment conforme solicitado
       const workerResult = await SessionWorkerPipe.process(raw, this.SECRET);
-      console.log(`%c[Stage 2] Worker processado (Payload descriptografado).`, 'color: #a5b4fc');
+      console.log(`%c[Stage 2] Descriptografia concluída via Worker.`, 'color: #a5b4fc');
 
-      // STAGE 3: VALIDAÇÃO
+      // STAGE 3: VALIDAÇÃO DE CONFORMIDADE
       await this.stageComplianceValidation(workerResult);
 
       // STAGE 4: FINALIZAÇÃO
       this.stageFinalization(workerResult.session);
+
     } catch (error) {
       this.handleExecutionError(error);
     }
@@ -79,18 +84,21 @@ export class SessionCreationExecution {
 
   private async stageComplianceValidation(result: any): Promise<void> {
     if (!result.session?.id_prospect) {
-      throw new Error('Falha de conformidade: ID Prospect ausente.');
+      throw new Error('Falha de conformidade: Atributos de sessão incompletos.');
     }
-    console.log(`[Stage 3] Entropy: ${result.density} | Weight: ${result.weight}kb`);
+    console.log(`[Stage 3] Conformidade OK. Densidade: ${result.density}`);
   }
 
   private stageFinalization(session: Session): void {
     this.context.setSession(session);
-    console.log(`%c[Stage 4] Finalization: Rota CREATE -> REST.`, 'color: #10b981');
+    console.log(`%c[Stage 4] Sessão ativa e injetada no contexto.`, 'color: #10b981');
   }
 
   private handleExecutionError(err: any): void {
-    console.error(`%c[Execution Error] Bloqueio na Criação:`, 'color: #ef4444', err);
+    const errorMsg = err.error?.error || err.message || 'Erro desconhecido';
+    console.error(`%c[Execution Error] Bloqueio no Pipeline: ${errorMsg}`, 'color: #ef4444');
     this.context.clear();
+    // Limpa o token em caso de erro para forçar novo handshake
+    (window as any)._sessionToken = null;
   }
 }

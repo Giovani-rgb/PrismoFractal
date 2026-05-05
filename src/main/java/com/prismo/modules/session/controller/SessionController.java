@@ -50,12 +50,12 @@ public ResponseEntity<Map<String, Object>> establishPublicHandshake(
         }
 
         // O Service aqui fará 3 coisas:
-        // 1. Validar se o token existe e não expirou (45s).
+        // 1. Validar se o token existe e não expirou (10s).
         // 2. Validar se o cliente esperou o tempo mínimo aleatório (Anti-Bot).
-        // 3. Calcular o segredo compartilhado e remover o token da memória.
+        
         service.finalizeSharedSecret(windowToken, clientB);
 
-        // Busca o segredo calculado para bater com o que o cliente enviou (debug)
+        // como o segredo nao esta no corpo da requisição vamos dar seguimento nesta parte com outro token que sera pra validar a entrada do usuário lá na rota anonymous, a parte de checar se o token que calculei dar match nao sera mais considerado. Em vurtude disso passaremos mais um token de reentrada na response. 
         String secretCalculated = service.getSecretByToken(windowToken); 
 
         boolean isMatch = secretCalculated != null && secretCalculated.equalsIgnoreCase(debugSecretFromClient);

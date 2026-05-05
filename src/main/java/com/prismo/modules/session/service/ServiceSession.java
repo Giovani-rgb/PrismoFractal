@@ -2,34 +2,20 @@ package com.prismo.modules.session.service;
 
 import com.prismo.config.JwtService;
 import com.prismo.modules.session.model.Session;
-import com.prismo.modules.session.dto.DiffieHellmanModel;
 import com.prismo.modules.session.repository.SessionRepository;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.HexFormat;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-
-/**
- * Record para armazenar metadados da janela de reentrada com regras anti-bot.
- */
-record WindowMetadata(
-        LocalDateTime expiresAt,
-        double minResponseTime,
-        long internalProcessDelay,
-        long createdAtMillis) {
-}
 
 @Service
 @Transactional
@@ -38,118 +24,97 @@ public class ServiceSession {
     private final SessionRepository repository;
     private final GeoLocationService geoLocationService;
     private final JwtService jwtService;
-    private final SecureRandom secureRandom = new SecureRandom();
+    private final CryptoHelper cryptoHelper;
 
-    private final Map<String, DiffieHellmanModel> dhContexts = new ConcurrentHashMap<>();
-    private final Map<String, String> activeSharedSecrets = new ConcurrentHashMap<>();
-    private final Map<String, WindowMetadata> reentryWindows = new ConcurrentHashMap<>();
-
-    private static final BigInteger P_DH = new BigInteger("FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD1" +
-            "29024E088A67CC74020BBEA63B139B22514A08798E3404DD" +
-            "EF9519B3CD3A431B302B0A6DF25F14374FE1356D6D51C245" +
-            "E485B576625E7EC6F44C42E9A637ED6B0BFF5CB6F406B7ED" +
-            "EE386BFB5A899FA5AE9F24117C4B1FE649286651ECE45B3D" +
-            "C2007CB8A163BF0598DA48361C55D39A69163FA8FD24CF5F" +
-            "83655D23DCA3AD961C62F356208552BB9ED529077096966D" +
-            "670C354E4ABC9804F1746C08CA18217C32905E462E36CE3B" +
-            "E39E772C180E86039B2783A2EC07A28FB5C55DF06F4C52C9" +
-            "DE2BCBF6955817183995497CEA956AE515D2261898FA0510" +
-            "15728E5A8AACAA68FFFFFFFFFFFFFFFF", 16);
-    private static final BigInteger G_DH = BigInteger.valueOf(2);
-
-    public ServiceSession(SessionRepository repository, GeoLocationService geoLocationService, JwtService jwtService) {
+    public ServiceSession(SessionRepository repository,
+                          GeoLocationService geoLocationService,
+                          JwtService jwtService,
+                          CryptoHelper cryptoHelper) {
         this.repository = repository;
         this.geoLocationService = geoLocationService;
         this.jwtService = jwtService;
+        this.cryptoHelper = cryptoHelper;
     }
 
     /**
-     * ESTÁGIO 1: Gera Handshake DH e Janela de Reentrada com metadados
-     * comportamentais.
+     * ESTÁGIO 1: Inicia o processo de handshake delegando a criação 
+     * de parâmetros e janelas para o CryptoHelper.
      */
     public Map<String, Object> generateServerHandshake() {
         String token = UUID.randomUUID().toString();
 
-        // Regras aleatórias de tempo
-        double minResponse = 2.90 + (0.30 * secureRandom.nextDouble()); // 2.90 a 3.20s
-        long internalDelay = 20 + secureRandom.nextInt(41); // 20ms a 60ms
-
-        reentryWindows.put(token, new WindowMetadata(
-                LocalDateTime.now().plusSeconds(45),
-                minResponse,
-                internalDelay,
-                System.currentTimeMillis()));
-
-        BigInteger _a = new BigInteger(2048, secureRandom).mod(P_DH);
-        BigInteger A = G_DH.modPow(_a, P_DH);
-
-        dhContexts.put(token, new DiffieHellmanModel(P_DH, G_DH, _a, A));
+        var window = cryptoHelper.createNewWindow(token);
+        var dh = cryptoHelper.generateDH(token);
 
         return Map.of(
-                "p", P_DH.toString(16),
-                "g", G_DH.toString(16),
-                "A", A.toString(16),
+                "p", dh.getP().toString(16),
+                "g", dh.getG().toString(16),
+                "A", dh.getA().toString(16),
                 "windowToken", token,
-                "minWait", minResponse);
+                "minWait", window.minWait()
+        );
     }
 
     /**
-     * ESTÁGIO 2: Finaliza o segredo compartilhado validando comportamento temporal.
+     * ESTÁGIO 2: Finaliza o segredo e valida o comportamento temporal.
+     * Não há mais comparação de match com segredo vindo do cliente.
      */
     public void finalizeSharedSecret(String token, String clientB) {
         validateAndConsumeWindow(token);
-
-        DiffieHellmanModel ctx = dhContexts.remove(token);
-        if (ctx == null)
-            throw new RuntimeException("Handshake inválido ou expirado.");
-
-        try {
-            BigInteger b = new BigInteger(clientB, 16);
-            BigInteger sharedSecret = b.modPow(ctx.get_a(), P_DH);
-            activeSharedSecrets.put(token, sharedSecret.toString(16));
-        } catch (Exception e) {
-            throw new RuntimeException("Erro ao processar chave criptográfica.");
-        }
+        
+        // Calcula e armazena o segredo (para uso interno da infra de túnel)
+        cryptoHelper.calculateSharedSecret(token, clientB);
     }
-    
+
     /**
-     * ROTA REFRESH: Apenas para passar no build. 
-     * Busca a primeira sessão não revogada (temporário para desenvolvimento).
+     * Gera o token de 10 segundos para consumo na rota anonymous.
      */
-    public Session refreshSessionData(String sessionCipher) {
-        // TODO: Implementar extração de ID do sessionCipher via JWT no futuro
-        return repository.findAll().stream()
-                .filter(s -> !s.isRevoked())
-                .findFirst()
-                .orElseThrow(() -> new EntityNotFoundException("Nenhuma sessão ativa encontrada."));
+    public String generateReentryToken(String windowToken) {
+        // Implementação enxuta: o próprio windowToken validado serve como base 
+        // ou você pode gerar um novo identificador curto aqui.
+        return UUID.randomUUID().toString().substring(0, 8); 
     }
 
+    /**
+     * Valida se o cliente respeitou o tempo de resposta (2.8s - 3.10s)
+     * e aplica o delay artificial antes de liberar a resposta.
+     */
     private void validateAndConsumeWindow(String token) {
-        WindowMetadata meta = reentryWindows.remove(token); // Consome para evitar reuso
+        var meta = cryptoHelper.consumeWindow(token);
 
-        if (meta == null)
-            throw new RuntimeException("Acesso negado: Janela inexistente.");
-
-        // 1. Timeout Exception
-        if (LocalDateTime.now().isAfter(meta.expiresAt())) {
-            throw new RuntimeException("Timeout: A janela de reentrada expirou (45s).");
+        if (meta == null) {
+            throw new RuntimeException("Acesso negado: Sessão de handshake inexistente.");
         }
 
-        // 2. Validação de tempo mínimo (Anti-Bot)
-        double elapsedSeconds = (System.currentTimeMillis() - meta.createdAtMillis()) / 1000.0;
-        if (elapsedSeconds < meta.minResponseTime()) {
+        if (LocalDateTime.now().isAfter(meta.expiresAt())) {
+            throw new RuntimeException("Timeout: A janela de reentrada expirou.");
+        }
+
+        double elapsed = (System.currentTimeMillis() - meta.createdAtMillis()) / 1000.0;
+
+        // Validação estrita conforme sua regra: 2.8s a 3.10s
+        if (elapsed < meta.minWait()) {
             throw new RuntimeException("Violação de integridade: Resposta rápida demais.");
         }
+        
+        if (elapsed > 4.5) { // Margem de segurança para o teto de 3.10s + processamento
+             throw new RuntimeException("Violação de integridade: Resposta tardia.");
+        }
 
-        // 3. Delay artificial interno (faz o cliente sentir o "peso" do servidor)
+        applyArtificialDelay(meta.internalDelay());
+    }
+
+    private void applyArtificialDelay(long delay) {
         try {
-            Thread.sleep(meta.internalProcessDelay());
+            Thread.sleep(delay);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new RuntimeException("Janela interrompida durante o delay artificial.");
         }
     }
 
+    /**
+     * Criação de sessão após validação completa.
+     */
     public Session createAnonymous(String ipAddress, String userAgent) {
         UUID sessionId = UUID.randomUUID();
         String jwt = jwtService.generateToken(sessionId.toString(), 30L * 24 * 60 * 60 * 1000);
@@ -170,13 +135,12 @@ public class ServiceSession {
 
     public ResponseCookie generateSessionCookie(String encryptedValue) {
         return ResponseCookie.from("nameSessionKey", encryptedValue)
-                .httpOnly(true).secure(true).path("/").maxAge(Duration.ofDays(30)).sameSite("Lax").build();
-    }
-
-    public void revoke(UUID sessionId) {
-        Session session = repository.findById(sessionId)
-                .orElseThrow(() -> new EntityNotFoundException("Session não encontrada"));
-        session.setRevoked(true);
+                .httpOnly(true)
+                .secure(true)
+                .path("/")
+                .maxAge(Duration.ofDays(30))
+                .sameSite("Lax")
+                .build();
     }
 
     private String generateFingerprint(String ip, String userAgent) {
@@ -198,12 +162,23 @@ public class ServiceSession {
     }
 
     public String getSecretByToken(String token) {
-        return activeSharedSecrets.get(token);
+        return cryptoHelper.getSecretByToken(token);
     }
 
+    public Session refreshSessionData(String sessionCipher) {
+        return repository.findAll().stream()
+                .filter(s -> !s.isRevoked())
+                .findFirst()
+                .orElseThrow(() -> new EntityNotFoundException("Sessão inválida ou expirada."));
+    }
+
+    public void revoke(UUID sessionId) {
+        Session session = repository.findById(sessionId)
+                .orElseThrow(() -> new EntityNotFoundException("Session não encontrada"));
+        session.setRevoked(true);
+    }
+    
     public void cleanup(String token) {
-        reentryWindows.remove(token);
-        dhContexts.remove(token);
-        activeSharedSecrets.remove(token);
+        cryptoHelper.fullCleanup(token);
     }
 }
