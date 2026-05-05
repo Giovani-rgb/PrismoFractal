@@ -14,9 +14,6 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * Controller Prismo: Gestão de Sessões e Handshake Criptográfico.
- */
 @RestController
 @RequestMapping("/api/sessions")
 public class SessionController {
@@ -35,7 +32,7 @@ public class SessionController {
      * Stage 1 — corpo vazio → retorna {p, g, A, windowToken, minWait}
      * Stage 2 — corpo {B} + header X-Window-Token
      *          → valida janela comportamental (anti-bot)
-     *          → emite anonymousToken de 15s (passa-se para /anonymous)
+     *          → emite anonymousToken de 15s (uso único para /anonymous)
      *          → retorna {status, anonymousToken}
      */
     @PostMapping("/public")
@@ -44,13 +41,11 @@ public class SessionController {
             @RequestHeader(value = "X-Window-Token", required = false) String windowToken
     ) {
         try {
-            // ESTÁGIO 1: Drop inicial
             if (clientPayload == null || !clientPayload.containsKey("B")) {
                 Map<String, Object> dhParams = service.generateServerHandshake();
                 return ResponseEntity.ok(dhParams);
             }
 
-            // ESTÁGIO 2: Callback matemático + validação comportamental
             if (windowToken == null || windowToken.isBlank()) {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                         .body(Map.of("error", "Token de janela ausente."));
@@ -58,7 +53,6 @@ public class SessionController {
 
             service.finalizeSharedSecret(windowToken, clientPayload.get("B"));
 
-            // Emite o token de passagem (anti-bot entre /public e /anonymous)
             String anonymousToken = service.issueAnonymousPassToken();
 
             return ResponseEntity.ok(Map.of(
@@ -102,7 +96,6 @@ public class SessionController {
             @RequestHeader(value = "X-Anonymous-Token", required = false) String anonymousToken
     ) {
         try {
-            // Validador anti-bot: token de passagem obrigatório
             service.consumeAnonymousPassToken(anonymousToken);
 
             String ip = extractIp(request);
