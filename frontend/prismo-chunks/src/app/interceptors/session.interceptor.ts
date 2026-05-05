@@ -8,12 +8,18 @@ import { SessionContext } from '../context/session.context';
  * Usado no início da jornada quando ainda não há dados do usuário.
  */
 export const inboundInterceptor: HttpInterceptorFn = (req, next) => {
+  const anonymousToken = (window as any)._anonymousToken;
+
+  const headers: { [key: string]: string } = {
+    'X-App-Id': environment.appId,
+    'Authorization': `Bearer ${environment.appSessionSecret}`,
+  };
+
+  if (anonymousToken) {
+    headers['X-Anonymous-Token'] = anonymousToken;
+  }
   return next(req.clone({
-    setHeaders: {
-      'Authorization': `Bearer ${environment.appSessionSecret}`,
-      'X-App-Id': environment.appId,
-    },
-  }));
+    setHeaders: headers }));
 };
 
 /**
@@ -54,7 +60,7 @@ export const transactionInterceptor: HttpInterceptorFn = (req, next) => {
  */
 export const sessionFlowInterceptor: HttpInterceptorFn = (req, next) => {
   const windowToken   = (window as any)._sessionToken;
-  const anonymousToken = (window as any)._anonymousToken;
+  
 
   const headers: { [key: string]: string } = {
     'X-App-Id': environment.appId,
@@ -66,10 +72,8 @@ export const sessionFlowInterceptor: HttpInterceptorFn = (req, next) => {
     headers['X-Window-Token'] = windowToken;
   }
 
-  // Injetado após Stage 0.2: necessário para /anonymous (X-Anonymous-Token)
-  if (anonymousToken) {
-    headers['X-Anonymous-Token'] = anonymousToken;
-  }
+  
+  
 
   return next(req.clone({ setHeaders: headers }));
 };

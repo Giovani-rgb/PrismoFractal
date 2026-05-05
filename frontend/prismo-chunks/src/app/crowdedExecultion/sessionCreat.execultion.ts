@@ -38,6 +38,7 @@ export class SessionCreationExecution {
 
       // 4. Calcula a Shared Secret (S) usando o A do servidor
       const cryptoSetup = await SessionWorkerPipe.calculateDH(dhParams.A, dhContext);
+      // agente pode apenas logar o cryptoSetup com o Shared Secret para debug 
 
       console.log(`%c[Stage 0.2] Shared Secret gerada localmente.`, 'color: #fbbf24');
 
@@ -57,6 +58,7 @@ export class SessionCreationExecution {
         B: dhContext.B
       });
 
+    // preciso ver o que recebo em stage2Response
       // Registra o token de passagem para que o interceptor o envie em X-Anonymous-Token
       (window as any)._anonymousToken = stage2Response.anonymousToken;
 
