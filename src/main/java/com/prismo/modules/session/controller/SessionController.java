@@ -29,71 +29,61 @@ public class SessionController {
         this.responseQueries = responseQueries;
     }
 
+    /**
+     * ROTA PUBLIC: Handshake Diffie-Hellman em dois estágios.
+     *
+     * Stage 1 — corpo vazio → retorna {p, g, A, windowToken, minWait}
+     * Stage 2 — corpo {B} + header X-Window-Token
+     *          → valida janela comportamental (anti-bot)
+     *          → emite anonymousToken de 15s (passa-se para /anonymous)
+     *          → retorna {status, anonymousToken}
+     */
     @PostMapping("/public")
-public ResponseEntity<Map<String, Object>> establishPublicHandshake(
-        @RequestBody(required = false) Map<String, String> clientPayload,
-        @RequestHeader(value = "X-Window-Token", required = false) String windowToken
-) {
-    try {
-        // ESTÁGIO 1: Drop inicial (p, g, A) + Window Token
-        if (clientPayload == null || !clientPayload.containsKey("B")) {
-            Map<String, Object> dhParams = service.generateServerHandshake();
-            return ResponseEntity.ok(dhParams);
+    public ResponseEntity<Map<String, Object>> establishPublicHandshake(
+            @RequestBody(required = false) Map<String, String> clientPayload,
+            @RequestHeader(value = "X-Window-Token", required = false) String windowToken
+    ) {
+        try {
+            // ESTÁGIO 1: Drop inicial
+            if (clientPayload == null || !clientPayload.containsKey("B")) {
+                Map<String, Object> dhParams = service.generateServerHandshake();
+                return ResponseEntity.ok(dhParams);
+            }
+
+            // ESTÁGIO 2: Callback matemático + validação comportamental
+            if (windowToken == null || windowToken.isBlank()) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(Map.of("error", "Token de janela ausente."));
+            }
+
+            service.finalizeSharedSecret(windowToken, clientPayload.get("B"));
+
+            // Emite o token de passagem (anti-bot entre /public e /anonymous)
+            String anonymousToken = service.issueAnonymousPassToken();
+
+            return ResponseEntity.ok(Map.of(
+                    "status", "established",
+                    "anonymousToken", anonymousToken
+            ));
+
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Erro interno no handshake."));
         }
-
-        // ESTÁGIO 2: O Callback (Validação Matemática + Comportamental)
-        String clientB = clientPayload.get("B");
-        String debugSecretFromClient = clientPayload.get("debugSecret");
-
-        if (windowToken == null || windowToken.isBlank()) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", "Token de janela ausente."));
-        }
-
-        // O Service aqui fará 3 coisas:
-        // 1. Validar se o token existe e não expirou (10s).
-        // 2. Validar se o cliente esperou o tempo mínimo aleatório (Anti-Bot).
-        
-        service.finalizeSharedSecret(windowToken, clientB);
-
-        // como o segredo nao esta no corpo da requisição vamos dar seguimento nesta parte com outro token que sera pra validar a entrada do usuário lá na rota anonymous, a parte de checar se o token que calculei dar match nao sera mais considerado. Em vurtude disso passaremos mais um token de reentrada na response. 
-        String secretCalculated = service.getSecretByToken(windowToken); 
-
-        boolean isMatch = secretCalculated != null && secretCalculated.equalsIgnoreCase(debugSecretFromClient);
-
-        return ResponseEntity.ok(Map.of(
-            "status", "established",
-            "match", isMatch,
-            "message", isMatch ? "Túnel seguro estabelecido." : "Falha na sincronia de chaves."
-        ));
-
-    } catch (RuntimeException e) {
-        // Captura erros de "Resposta rápida demais", "Timeout" ou "Token inválido"
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", e.getMessage()));
-    } catch (Exception e) {
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", "Erro interno no handshake."));
     }
-}
-
-
-
-
-
 
     /**
      * ROTA REFRESH: Atualiza os claims do token através do Cookie.
-     * O valor vem do 'nameSessionKey' definido no environment do Frontend.
      */
     @PostMapping("/refresh")
     public ResponseEntity<Map<String, String>> refresh(
             @CookieValue(name = "nameSessionKey") String sessionCipher
     ) {
-        // 1. Revalida a sessão através do ciphertext do cookie
         Session updatedSession = service.refreshSessionData(sessionCipher);
-
-        // 2. Cifra os novos dados para a resposta
         Map<String, String> encryptedResponse = responseQueries.sanitizeAndEncrypt(updatedSession);
-
-        // 3. Rotaciona o cookie de sessão no browser
         ResponseCookie newCookie = service.generateSessionCookie(encryptedResponse.get("ciphertext"));
 
         return ResponseEntity.ok()
@@ -103,21 +93,32 @@ public ResponseEntity<Map<String, Object>> establishPublicHandshake(
 
     /**
      * ROTA ANONYMOUS: Criação de sessão após o túnel seguro estar pronto.
+     * Exige X-Anonymous-Token emitido na saída de /public (TTL 15s, uso único).
      */
     @PostMapping("/anonymous")
-    public ResponseEntity<Map<String, String>> createAnonymous(
+    public ResponseEntity<?> createAnonymous(
             HttpServletRequest request,
-            @RequestHeader(value = "User-Agent", defaultValue = "UNKNOWN") String userAgent
+            @RequestHeader(value = "User-Agent", defaultValue = "UNKNOWN") String userAgent,
+            @RequestHeader(value = "X-Anonymous-Token", required = false) String anonymousToken
     ) {
-        String ip = extractIp(request);
-        Session session = service.createAnonymous(ip, userAgent);
-        
-        Map<String, String> encryptedResponse = responseQueries.sanitizeAndEncrypt(session);
-        ResponseCookie sessionCookie = service.generateSessionCookie(encryptedResponse.get("ciphertext"));
+        try {
+            // Validador anti-bot: token de passagem obrigatório
+            service.consumeAnonymousPassToken(anonymousToken);
 
-        return ResponseEntity.ok()
-                .header(HttpHeaders.SET_COOKIE, sessionCookie.toString())
-                .body(encryptedResponse);
+            String ip = extractIp(request);
+            Session session = service.createAnonymous(ip, userAgent);
+
+            Map<String, String> encryptedResponse = responseQueries.sanitizeAndEncrypt(session);
+            ResponseCookie sessionCookie = service.generateSessionCookie(encryptedResponse.get("ciphertext"));
+
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.SET_COOKIE, sessionCookie.toString())
+                    .body(encryptedResponse);
+
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", e.getMessage()));
+        }
     }
 
     @DeleteMapping("/{id}")
@@ -131,4 +132,3 @@ public ResponseEntity<Map<String, Object>> establishPublicHandshake(
         return (ip == null || ip.isBlank()) ? request.getRemoteAddr() : ip;
     }
 }
-

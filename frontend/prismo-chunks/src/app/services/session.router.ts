@@ -24,7 +24,7 @@ export class SessionRouter {
         tag: SessionTag.PUBLIC,
         method: 'POST',
         // O ?? undefined resolve o conflito de tipos
-        handler: (s, p) => s.publicHandshake(p?.B, s.sharedSecret ?? undefined),
+        handler: (s, p) => s.publicHandshake(p?.B),
         interceptor: sessionFlowInterceptor 
       }],
       [SessionTag.CREATE, {

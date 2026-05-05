@@ -22,6 +22,9 @@ public class CryptoHelper {
     private final Map<String, WindowMetadata> reentryWindows = new ConcurrentHashMap<>();
     private final Map<String, String> activeSecrets = new ConcurrentHashMap<>();
 
+    // Tokens de passagem: emitidos na saída de /public, consumidos na entrada de /anonymous
+    private final Map<String, LocalDateTime> anonymousPassTokens = new ConcurrentHashMap<>();
+
     private static final BigInteger P_DH = new BigInteger(
             "FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD1" +
             "29024E088A67CC74020BBEA63B139B22514A08798E3404DD" +
@@ -80,6 +83,33 @@ public class CryptoHelper {
 
     public WindowMetadata consumeWindow(String token) {
         return reentryWindows.remove(token);
+    }
+
+    /**
+     * Emite um token de passagem de uso único com TTL de 15 segundos.
+     * Chamado na saída do Stage 2 de /public.
+     */
+    public String issueAnonymousToken() {
+        String token = java.util.UUID.randomUUID().toString();
+        anonymousPassTokens.put(token, LocalDateTime.now().plusSeconds(15));
+        return token;
+    }
+
+    /**
+     * Valida e consome o token de passagem.
+     * Lança RuntimeException se ausente ou expirado — bloqueando /anonymous.
+     */
+    public void consumeAnonymousToken(String token) {
+        if (token == null || token.isBlank()) {
+            throw new RuntimeException("Token de passagem ausente.");
+        }
+        LocalDateTime expiry = anonymousPassTokens.remove(token);
+        if (expiry == null) {
+            throw new RuntimeException("Token de passagem inválido ou já utilizado.");
+        }
+        if (LocalDateTime.now().isAfter(expiry)) {
+            throw new RuntimeException("Token de passagem expirado (15s).");
+        }
     }
 
     public void fullCleanup(String token) {

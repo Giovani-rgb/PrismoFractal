@@ -53,23 +53,23 @@ export const transactionInterceptor: HttpInterceptorFn = (req, next) => {
  * do túnel criptográfico através do X-Window-Token.
  */
 export const sessionFlowInterceptor: HttpInterceptorFn = (req, next) => {
-  
-  // Recupera o token diretamente da memória global (atalho rápido)
-  const windowToken = (window as any)._sessionToken;
+  const windowToken   = (window as any)._sessionToken;
+  const anonymousToken = (window as any)._anonymousToken;
 
-  // Montagem dos headers base (Contrato de Infra)
   const headers: { [key: string]: string } = {
     'X-App-Id': environment.appId,
     'Authorization': `Bearer ${environment.appSessionSecret}`,
   };
 
-  // Injeção dinâmica da flag após a primeira interação (Stage 0.1)
+  // Injetado após Stage 0.1: necessário para o Stage 0.2 (X-Window-Token)
   if (windowToken) {
     headers['X-Window-Token'] = windowToken;
   }
 
-  // Clona a requisição com os novos headers
-  const authorizedReq = req.clone({ setHeaders: headers });
+  // Injetado após Stage 0.2: necessário para /anonymous (X-Anonymous-Token)
+  if (anonymousToken) {
+    headers['X-Anonymous-Token'] = anonymousToken;
+  }
 
-  return next(authorizedReq);
+  return next(req.clone({ setHeaders: headers }));
 };

@@ -17,12 +17,9 @@ export class SessionService {
    * O Interceptor agora cuida do X-Window-Token automaticamente.
    * O serviço envia apenas o payload 'B' se ele existir.
    */
-  publicHandshake(clientB?: string, sharedSecret?: string): Observable<any> {
+  publicHandshake(clientB?: string): Observable<any> {
       const body: any = {};
-
       if (clientB) body.B = clientB;
-      if (sharedSecret) body.debugSecret = sharedSecret; // Passando a variável para o match no back-end
-
       return this.http.post<any>(`${this.API_BASE}/public`, body);
   }
 

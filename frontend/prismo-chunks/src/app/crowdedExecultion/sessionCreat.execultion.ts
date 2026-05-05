@@ -51,14 +51,16 @@ export class SessionCreationExecution {
         await new Promise(resolve => setTimeout(resolve, waitTime * 1000));
       }
 
-      // 5. STAGE 2 (CALLBACK): Envia B e o segredo calculado para conferência
-      // Chave 'debugSecret' deve bater com o clientPayload.get("debugSecret") do Java
-      await this.orchestrator.executeAssignment({
-        B: dhContext.B,
-        debugSecret: cryptoSetup.sharedSecret
+      // 5. STAGE 2 (CALLBACK): Envia B — servidor valida a janela comportamental
+      //    e emite o anonymousToken (TTL 15s) para liberação de /anonymous
+      const stage2Response = await this.orchestrator.executeAssignment({
+        B: dhContext.B
       });
 
-      console.log(`%c[Stage 0.3] Handshake finalizado. Match confirmado no servidor.`, 'color: #fbbf24');
+      // Registra o token de passagem para que o interceptor o envie em X-Anonymous-Token
+      (window as any)._anonymousToken = stage2Response.anonymousToken;
+
+      console.log(`%c[Stage 0.3] Handshake finalizado. Token de passagem emitido.`, 'color: #fbbf24');
 
       // --- STAGE 1: INGESTÃO (CREATE) ---
       // Agora que o canal está pronto, pedimos a criação da sessão
@@ -98,7 +100,8 @@ export class SessionCreationExecution {
     const errorMsg = err.error?.error || err.message || 'Erro desconhecido';
     console.error(`%c[Execution Error] Bloqueio no Pipeline: ${errorMsg}`, 'color: #ef4444');
     this.context.clear();
-    // Limpa o token em caso de erro para forçar novo handshake
+    // Limpa ambos os tokens para forçar novo handshake completo
     (window as any)._sessionToken = null;
+    (window as any)._anonymousToken = null;
   }
 }
