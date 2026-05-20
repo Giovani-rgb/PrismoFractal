@@ -3,11 +3,14 @@ import { EncryptedPayload, Session } from '../models/session.model';
 const ENCODER = new TextEncoder();
 const DECODER = new TextDecoder();
 
+async function deriveKey(secret: string, usage: KeyUsage[]): Promise<CryptoKey> {
+  const raw = ENCODER.encode(secret);
+  const hash = await crypto.subtle.digest('SHA-256', raw);
+  return crypto.subtle.importKey('raw', hash, { name: 'AES-GCM' }, false, usage);
+}
+
 export async function encryptData(data: Session, secret: string): Promise<EncryptedPayload> {
-  const keyData = ENCODER.encode(secret);
-  const cryptoKey = await crypto.subtle.importKey(
-    'raw', keyData, { name: 'AES-GCM' }, false, ['encrypt']
-  );
+  const cryptoKey = await deriveKey(secret, ['encrypt']);
 
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const ciphertext = await crypto.subtle.encrypt(
@@ -23,10 +26,7 @@ export async function encryptData(data: Session, secret: string): Promise<Encryp
 }
 
 export async function decryptData(data: EncryptedPayload, secret: string): Promise<Session> {
-  const keyData = ENCODER.encode(secret);
-  const cryptoKey = await crypto.subtle.importKey(
-    'raw', keyData, { name: 'AES-GCM' }, false, ['decrypt']
-  );
+  const cryptoKey = await deriveKey(secret, ['decrypt']);
 
   const iv = Uint8Array.from(atob(data.iv), c => c.charCodeAt(0));
   const ciphertext = Uint8Array.from(atob(data.ciphertext), c => c.charCodeAt(0));
