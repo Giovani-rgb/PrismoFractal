@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
-import { Session, SessionTag, PrismoSessionState } from '../models/session.model';
+import { Session, SessionTag, PrismoSessionState, DiffieHellmanModel, DHResult } from '../models/session.model';
 
 @Injectable({ providedIn: 'root' })
 export class SessionContext {
@@ -12,7 +12,9 @@ export class SessionContext {
     is_loading: false,
     is_online: navigator.onLine,
     schedule_requests: !navigator.onLine,
-    use_pwa_styles: window.matchMedia('(display-mode: standalone)').matches
+    use_pwa_styles: window.matchMedia('(display-mode: standalone)').matches,
+    dhContext: null, // Metadados iniciais nulos
+    dhResult: null   // Segredo simétrico inicial nulo
   });
 
   public readonly state$ = this._state.asObservable();
@@ -32,6 +34,28 @@ export class SessionContext {
       tag: tag, // Rota ativa
       is_loading: true,
       is_ready: false
+    });
+  }
+
+  /**
+   * CRIPTO: Estaciona os parâmetros primordiais e a chave pública B no estado
+   */
+  setDHContext(context: DiffieHellmanModel): void {
+    const current = this._state.getValue();
+    this._state.next({
+      ...current,
+      dhContext: context
+    });
+  }
+
+  /**
+   * CRIPTO: Consolida o resultado do Handshake contendo a Shared Secret efêmera
+   */
+  setDHResult(result: DHResult): void {
+    const current = this._state.getValue();
+    this._state.next({
+      ...current,
+      dhResult: result
     });
   }
 
@@ -63,6 +87,9 @@ export class SessionContext {
     });
   }
 
+  /**
+   * Limpa completamente o estado da sessão e purga os metadados criptográficos
+   */
   clear(): void {
     this._state.next({
       data: null,
@@ -71,10 +98,13 @@ export class SessionContext {
       is_loading: false,
       is_online: navigator.onLine,
       schedule_requests: !navigator.onLine,
-      use_pwa_styles: window.matchMedia('(display-mode: standalone)').matches
+      use_pwa_styles: window.matchMedia('(display-mode: standalone)').matches,
+      dhContext: null,
+      dhResult: null
     });
   }
 
   get currentState(): PrismoSessionState { return this._state.getValue(); }
 }
+
 

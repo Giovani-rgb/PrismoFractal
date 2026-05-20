@@ -1,31 +1,34 @@
 package com.prismo.modules.session.service;
 
 import com.prismo.modules.session.dto.DiffieHellmanModel;
+import com.prismo.modules.session.enums.AntiBotTokenType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.math.BigInteger;
 import java.security.SecureRandom;
-import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.UUID;
 
 /**
- * Encapsula a lógica matemática e os estados temporários do handshake.
+ * Orquestrador centralizado do Contexto de Criptografia e Segurança Anti-Bot.
+ * <p>
+ * Executa o handshake Diffie-Hellman completo dentro do escopo da rota /public,
+ * utilizando a validação de reentrada para emitir com segurança o token de acesso à rota /anonymous.
  */
 @Component
 public class CryptoHelper {
 
+    private static final Logger log = LoggerFactory.getLogger(CryptoHelper.class);
+
     private final SecureRandom secureRandom = new SecureRandom();
+    private final AntiBotManager antiBotManager;
 
-    // Estados efêmeros movidos para cá
+    // Mapa que retém os dados matemáticos do handshake ativos durante a negociação na rota /public
     private final Map<String, DiffieHellmanModel> dhContexts = new ConcurrentHashMap<>();
-    private final Map<String, WindowMetadata> reentryWindows = new ConcurrentHashMap<>();
-    private final Map<String, String> activeSecrets = new ConcurrentHashMap<>();
-
-    // Tokens de passagem: emitidos na saída de /public, consumidos na entrada de /anonymous
-    private final Map<String, AnonymousMetadata> anonymousPassTokens = new ConcurrentHashMap<>();
     
+    // Grupo 14 do RFC 3526 (2048-bit MODP Group)
     private static final BigInteger P_DH = new BigInteger(
             "FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD1" +
             "29024E088A67CC74020BBEA63B139B22514A08798E3404DD" +
@@ -40,98 +43,144 @@ public class CryptoHelper {
             "15728E5A8AACAA68FFFFFFFFFFFFFFFF", 16);
     private static final BigInteger G_DH = BigInteger.valueOf(2);
 
-    public record WindowMetadata(
-            LocalDateTime expiresAt,
-            double minWait,
-            long internalDelay,
-            long createdAtMillis) {}
-    
-    // Record específico para a janela de Anonymous
-    public record AnonymousMetadata(LocalDateTime expiresAt, double minWait, long createdAtMillis) {}
-
-    public WindowMetadata createNewWindow(String token) {
-        double minWait = 2.80 + (0.30 * secureRandom.nextDouble()); // Entre 2.8 e 3.1s
-        long internalDelay = 20 + secureRandom.nextInt(41);
-
-        WindowMetadata meta = new WindowMetadata(
-                LocalDateTime.now().plusSeconds(45),
-                minWait,
-                internalDelay,
-                System.currentTimeMillis()
-        );
-        reentryWindows.put(token, meta);
-        return meta;
+    public CryptoHelper(AntiBotManager antiBotManager) {
+        this.antiBotManager = antiBotManager;
     }
 
-    public DiffieHellmanModel generateDH(String token) {
+    // =========================================================================
+    // ETAPA 1: ROTA "/public" (GET Inicial - Abertura do Handshake)
+    // =========================================================================
+    /**
+     * PRIMEIRA PARTE DO CÁLCULO: Inicialização do Contexto Seguro.
+     * <p>
+     * Chamado no primeiro hit da rota pública. Abre uma janela de reentrada temporizada
+     * direcionada para a própria rota pública e calcula a chave 'A' do servidor.
+     *
+     * @param clientToken O identificador gerado ou recebido para indexar este início de fluxo.
+     * @return O modelo DH contendo os parâmetros iniciais e a chave pública 'A'.
+     */
+    public DiffieHellmanModel initiatePublicContext(String clientToken) {
+        log.info("[ROTA /public - PARTE 1] Iniciando Handshake. Abrindo janela de reentrada.");
+
+        // 1. Cria a janela de tempo (REENTRY_WINDOW) para o cliente retornar e se validar na rota pública
+        antiBotManager.createNewWindow(clientToken);
+        log.debug("[ROTA /public - PARTE 1] REENTRY_WINDOW registrada para o token: {}", clientToken);
+
+        // 2. Executa a primeira parte do cálculo matemático (A = g^_a mod p)
+        log.debug("[ROTA /public - PARTE 1] Computando expoente privado efêmero de 2048-bits...");
         BigInteger _a = new BigInteger(2048, secureRandom).mod(P_DH);
         BigInteger A = G_DH.modPow(_a, P_DH);
+        
         DiffieHellmanModel ctx = new DiffieHellmanModel(P_DH, G_DH, _a, A);
-        dhContexts.put(token, ctx);
+        dhContexts.put(clientToken, ctx);
+
+        log.info("[ROTA /public - PARTE 1] Sucesso. Chave pública 'A' calculada. Aguardando retorno do cliente.");
         return ctx;
     }
 
-    public String calculateSharedSecret(String token, String clientB) {
-        DiffieHellmanModel ctx = dhContexts.remove(token);
-        if (ctx == null) throw new RuntimeException("Handshake inválido.");
-
-        BigInteger b = new BigInteger(clientB, 16);
-        String secret = b.modPow(ctx.get_a(), P_DH).toString(16);
-        activeSecrets.put(token, secret);
-        return secret;
-    }
-
-    public String getSecretByToken(String token) {
-        return activeSecrets.get(token);
-    }
-
-    public WindowMetadata consumeWindow(String token) {
-        return reentryWindows.remove(token);
-    }
-
+    // =========================================================================
+    // ETAPA 2: ROTA "/public" (POST Retorno - Fechamento do Handshake e Redirecionamento)
+    // =========================================================================
     /**
-     * Emite um token de passagem de uso único com TTL de 15 segundos.
-     * Chamado na saída do Stage 2 de /public.
+     * SEGUNDA PARTE DO CÁLCULO: Validação do Humano e Emissão do Passaporte.
+     * <p>
+     * O cliente retorna à rota pública enviando a sua chave 'B'. Validamos o tempo do antibot,
+     * calculamos o Shared Secret e, se tudo estiver perfeito, geramos e retornamos o token
+     * de passagem que dá o direito de acessar a rota "/anonymous".
+     *
+     * @param token O token de reentrada que o cliente usou para voltar à rota pública.
+     * @param clientBHex A chave pública enviada pelo cliente (B) em Hexadecimal.
+     * @return Map contendo o token "ANONYMOUS_PASS" de acesso à próxima rota e o segredo calculado.
      */
-    /**
-     * Gera o token de passagem e registra no mapa dedicado.
-     */
-    public Map<String, Object> generateAnonymousToken() {
-        String token = UUID.randomUUID().toString();
-        double minWait = 2.80 + (0.30 * secureRandom.nextDouble());
+    public Map<String, Object> finalizePublicHandshake(String token, String clientBHex) { // 'token' aqui é o windowToken
+        log.info("[ROTA /public - PARTE 2] Cliente retornou para validação e fechamento do cálculo.");
 
-        anonymousPassTokens.put(token, new AnonymousMetadata(
-                LocalDateTime.now().plusSeconds(15), // Expiração de 15s conforme solicitado
-                minWait,
-                System.currentTimeMillis()
-        ));
+        // 1. BARREIRA ANTI-BOT: Valida se o cliente voltou dentro do tempo humano esperado
+        log.debug("[ROTA /public - PARTE 2] Verificando comportamento de tempo na REENTRY_WINDOW...");
+        antiBotManager.consumeAndValidateToken(token, AntiBotTokenType.REENTRY_WINDOW);
+        log.info("[ROTA /public - PARTE 2] Filtro comportamental aprovado. Cliente validado como humano.");
+
+        // 2. Recupera o cálculo matemático parcial que guardamos na Parte 1 (usando o windowToken)
+        DiffieHellmanModel ctx = dhContexts.remove(token); // Usamos .remove() para já tirar o windowToken de circulação
+        if (ctx == null) {
+            log.error("[ROTA /public - PARTE 2] Contexto de chaves não localizado para o token: {}", token);
+            throw new RuntimeException("Sessão criptográfica inválida ou exposta.");
+        }
+
+        // 3. Executa a segunda parte do cálculo do Diffie-Hellman
+        log.debug("[ROTA /public - PARTE 2] Calculando o Segredo Compartilhado final...");
+        BigInteger clientB = new BigInteger(clientBHex, 16);
+        ctx.computeSharedSecret(clientB);
+        String sharedSecretHex = ctx.getSharedSecret().toString(16);
+
+        // 4. Emite o token de passagem para a rota /anonymous
+        log.info("[ROTA /public - PARTE 2] Handshake concluído. Emitindo passaporte de acesso para /anonymous.");
+        Map<String, Object> anonymousPassData = antiBotManager.generateAnonymousToken();
+
+        // =========================================================================
+        // AJUSTE CRUCIAL: Vincula o contexto matemático ao novo token de acesso
+        // =========================================================================
+        String anonymousToken = (String) anonymousPassData.get("anonymousToken");
+        dhContexts.put(anonymousToken, ctx); 
+        log.debug("[ROTA /public - PARTE 2] Contexto Diffie-Hellman transferido para o 'anonymousToken' com sucesso.");
+        // =========================================================================
 
         return Map.of(
-            "anonymousToken", token,
-            "minWait", minWait,
-            "status", "established"
+            "anonymousPass", anonymousPassData, // Contém o token físico para consumir em /anonymous
+            "sharedSecretHex", sharedSecretHex
         );
     }
 
+    // =========================================================================
+    // UTILS & LIMPEZA: Consumidos pelas rotas seguintes (/anonymous, etc.)
+    // =========================================================================
     /**
-     * Consome o token de passagem validando timing e expiração.
+     * Resgata o segredo compartilhado (Shared Secret) calculado, em formato Hexadecimal.
+     * Utiliza o token ativo como chave de busca no mapa de contextos em RAM.
+     *
+     * @param token O token correspondente ao estágio atual (geralmente o anonymousToken na rota /anonymous).
+     * @return O segredo em Hexadecimal pronto para uso no AES-GCM, ou null se não localizado/calculado.
      */
-    public void consumeAnonymousToken(String token) {
-        AnonymousMetadata meta = anonymousPassTokens.remove(token);
+    public String getSecretByToken(String token) {
+        log.debug("[CRYPTO HELPER] Tentando resgatar o Shared Secret para o token: {}", token);
 
-        if (meta == null) throw new RuntimeException("Token de passagem inválido ou já utilizado.");
-        if (LocalDateTime.now().isAfter(meta.expiresAt())) throw new RuntimeException("Token expirado (15s).");
+        if (token == null || token.isBlank()) {
+            log.warn("[CRYPTO HELPER] Busca abortada: O token fornecido está nulo ou vazio.");
+            return null;
+        }
 
-        double elapsed = (System.currentTimeMillis() - meta.createdAtMillis()) / 1000.0;
-        if (elapsed < meta.minWait()) throw new RuntimeException("Resposta para rota anonymous rápida demais.");
+        // Busca o modelo matemático associado ao token atual no mapa
+        DiffieHellmanModel ctx = dhContexts.get(token);
 
-        try { Thread.sleep(20); } catch (InterruptedException ignored) {}
+        // Validação 1: O token existe no mapa?
+        if (ctx == null) {
+            log.warn("[CRYPTO HELPER] Bloqueado: Nenhum contexto Diffie-Hellman foi localizado em RAM para o token informado.");
+            return null;
+        }
+
+        // Validação 2: A Fase 2 já aconteceu e o segredo foi computado?
+        if (ctx.getSharedSecret() == null) {
+            log.error("[CRYPTO HELPER] Crítico: O contexto existe, mas o cálculo do Shared Secret ainda não foi executado.");
+            return null;
+        }
+
+        log.info("[CRYPTO HELPER] Sucesso: Shared Secret recuperado e pronto para a cifragem AES-GCM.");
+        return ctx.getSharedSecret().toString(16);
     }
 
 
+
+    /**
+     * Purga os dados binários e limpa os mapas de memória de ambos os componentes.
+     */
     public void fullCleanup(String token) {
-        dhContexts.remove(token);
-        reentryWindows.remove(token);
-        activeSecrets.remove(token);anonymousPassTokens.remove(token);
+        log.info("[CLEANUP] Executando descarte completo do token: {}", token);
+        antiBotManager.removeToken(token);
+        
+        DiffieHellmanModel ctx = dhContexts.remove(token);
+        if (ctx != null) {
+            ctx.clearSecrets();
+            log.info("[CLEANUP] Memória RAM limpa com sucesso.");
+        }
     }
 }

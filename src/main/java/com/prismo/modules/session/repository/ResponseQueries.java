@@ -4,7 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.prismo.modules.session.model.Session;
 import com.prismo.modules.session.util.EncryptionUtils;
-import org.springframework.beans.factory.annotation.Value;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.Base64;
@@ -14,23 +15,18 @@ import java.util.Map;
 @Component 
 public class ResponseQueries {
 
-    private final ObjectMapper mapper;
-    private final String appSecret;
-
-    public ResponseQueries(
-            @Value("${app.session.secret}") String appSecret
-    ) {
-        this.appSecret = appSecret;
-        this.mapper = new ObjectMapper().registerModule(new JavaTimeModule());
-    }
+    private static final Logger log = LoggerFactory.getLogger(ResponseQueries.class);
+    private final ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
     /**
-     * Prepara os dados da sessão, criptografa e retorna um objeto estruturado
-     * para que o Frontend (Angular) consiga processar sem erros de fluxo.
+     * Sanitiza e criptografa os dados da sessão utilizando obrigatoriamente
+     * o Shared Secret do Diffie-Hellman resolvido em runtime.
      */
-    public Map<String, String> sanitizeAndEncrypt(Session session) {
+    public Map<String, String> sanitizeAndEncrypt(Session session, String secret) {
         try {
-            // 1. Mapeia os dados que serão enviados na sessão
+            log.info("[RESPONSE QUERIES] Sanitizando dados para cifragem em runtime. Sessão: {}", session.getId());
+
+            // 1. Mapeia estritamente os dados de negócio (SEM o token)
             Map<String, Object> data = new HashMap<>();
             data.put("id_prospect", session.getId());
             data.put("refs", session.getUserId()); 
@@ -41,33 +37,30 @@ public class ResponseQueries {
             data.put("expiresAt", session.getExpiresAt());
             data.put("lastAccessAt", session.getLastAccessAt());
 
-            if (session.getToken() != null) {
-                data.put("token", session.getToken());
-            }
-
-            // 2. Converte o objeto para string JSON
+            // 2. Converte o objeto para string JSON (Minificada por padrão)
             String jsonPayload = mapper.writeValueAsString(data);
 
-            // 3. Criptografa usando AES-GCM (retorna IV + Ciphertext combinados em Base64)
-            String encryptedBase64 = EncryptionUtils.encrypt(jsonPayload, this.appSecret);
+            // 3. Criptografa usando o AES-GCM com a chave simétrica vinda do handshake
+            String encryptedBase64 = EncryptionUtils.encrypt(jsonPayload, secret);
             byte[] combined = Base64.getDecoder().decode(encryptedBase64);
 
-            // 4. Separa os bytes para enviar um JSON estruturado
-            // O IV no seu EncryptionUtils tem 12 bytes
+            // 4. Separa os bytes do array combinado (IV = 12 bytes)
             byte[] iv = new byte[12];
             byte[] ciphertext = new byte[combined.length - 12];
             
             System.arraycopy(combined, 0, iv, 0, 12);
             System.arraycopy(combined, 12, ciphertext, 0, ciphertext.length);
 
-            // 5. Cria o mapa de resposta que o Spring converterá em JSON
+            // 5. Cria o mapa estruturado para o frontend
             Map<String, String> response = new HashMap<>();
             response.put("iv", Base64.getEncoder().encodeToString(iv));
             response.put("ciphertext", Base64.getEncoder().encodeToString(ciphertext));
 
+            log.info("[RESPONSE QUERIES] Payload cifrado com sucesso em runtime.");
             return response; 
 
         } catch (Exception e) {
+            log.error("[RESPONSE QUERIES] Falha ao cifrar resposta com a chave de runtime.", e);
             throw new RuntimeException("Erro ao processar e criptografar resposta da sessão", e);
         }
     }

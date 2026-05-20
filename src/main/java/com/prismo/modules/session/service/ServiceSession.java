@@ -1,9 +1,12 @@
 package com.prismo.modules.session.service;
 
 import com.prismo.config.JwtService;
+import com.prismo.modules.session.dto.DiffieHellmanModel;
 import com.prismo.modules.session.model.Session;
 import com.prismo.modules.session.repository.SessionRepository;
 import jakarta.persistence.EntityNotFoundException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +24,8 @@ import java.util.UUID;
 @Transactional
 public class ServiceSession {
 
+    private static final Logger log = LoggerFactory.getLogger(ServiceSession.class);
+
     private final SessionRepository repository;
     private final GeoLocationService geoLocationService;
     private final JwtService jwtService;
@@ -36,89 +41,74 @@ public class ServiceSession {
         this.cryptoHelper = cryptoHelper;
     }
 
+    // =========================================================================
+    // ORQUESTRAÇÃO DE ROTAS E HANDSHAKE (O PASSADOR DE BASTÃO)
+    // =========================================================================
+
     /**
-     * ESTÁGIO 1: Inicia o processo de handshake delegando a criação 
-     * de parâmetros e janelas para o CryptoHelper.
+     * FASE 1: ROTA /public (Abertura do Handshake)
+     * O cliente (frontend) acessa /public pela primeira vez (sem a chave B).
+     * O servidor prepara o terreno matemático e abre a janela de validação anti-bot (REENTRY_WINDOW).
+     *
+     * @return Payload para o cliente processar sua própria chave local e conhecer seu ticket de retorno.
      */
-    public Map<String, Object> generateServerHandshake() {
-        String token = UUID.randomUUID().toString();
+    public Map<String, Object> handlePublicInit() {
+        log.info("[SERVICE SESSION - FASE 1] Inicializando contexto seguro para nova conexão.");
+        
+        // 1. O ServiceSession assume o controle de criar o ticket de identificação
+        String windowToken = UUID.randomUUID().toString();
+        
+        // 2. Passa o bastão para o CryptoHelper abrir o contexto DH e travar a janela no AntiBot
+        DiffieHellmanModel dhModel = cryptoHelper.initiatePublicContext(windowToken);
 
-        var window = cryptoHelper.createNewWindow(token);
-        var dh = cryptoHelper.generateDH(token);
+        log.debug("[SERVICE SESSION - FASE 1] Parâmetros DH gerados com sucesso para o token: {}", windowToken);
 
+        // 3. Retorna apenas a estrutura pública que o frontend (web-worker) precisa
         return Map.of(
-                "p", dh.getP().toString(16),
-                "g", dh.getG().toString(16),
-                "A", dh.getA().toString(16),
-                "windowToken", token,
-                "minWait", window.minWait()
+                "p", dhModel.getP().toString(16),
+                "g", dhModel.getG().toString(16),
+                "A", dhModel.getA().toString(16),
+                "windowToken", windowToken
         );
     }
 
     /**
-     * ESTÁGIO 2: Finaliza o segredo e valida o comportamento temporal.
-     * Não há mais comparação de match com segredo vindo do cliente.
+     * FASE 2: ROTA /public (Fechamento do Handshake / Callback do Cliente)
+     * O cliente retorna à rota /public com o windowToken gerado na Fase 1 e a sua chave pública B.
+     * Delegamos ao CryptoHelper a validação temporal (AntiBot) e o cálculo final do Shared Secret.
+     *
+     * @param windowToken O token de reentrada emitido na Fase 1.
+     * @param clientBHex A chave pública gerada pelo dispositivo do cliente.
+     * @return O passaporte "ANONYMOUS_PASS" de uso único.
      */
-    public void finalizeSharedSecret(String token, String clientB) {
-        validateAndConsumeWindow(token);
+    public Map<String, Object> handlePublicFinalize(String windowToken, String clientBHex) {
+        log.info("[SERVICE SESSION - FASE 2] Recebido retorno do cliente para validação do token: {}", windowToken);
+
+        // 1. Passa o bastão para o CryptoHelper bater as regras AntiBot e fechar o cálculo de chaves
+        Map<String, Object> publicHandshakeResult = cryptoHelper.finalizePublicHandshake(windowToken, clientBHex);
         
-        // Calcula e armazena o segredo (para uso interno da infra de túnel)
-        cryptoHelper.calculateSharedSecret(token, clientB);
-    }
-
-    /**
-     * Gera o token de 10 segundos para consumo na rota anonymous.
-     */
-    public String generateReentryToken(String windowToken) {
-        // Implementação enxuta: o próprio windowToken validado serve como base 
-        // ou você pode gerar um novo identificador curto aqui.
-        return UUID.randomUUID().toString().substring(0, 8); 
-    }
-
-    /**
-     * Valida se o cliente respeitou o tempo de resposta (2.8s - 3.10s)
-     * e aplica o delay artificial antes de liberar a resposta.
-     */
-    private void validateAndConsumeWindow(String token) {
-        var meta = cryptoHelper.consumeWindow(token);
-
-        if (meta == null) {
-            throw new RuntimeException("Acesso negado: Sessão de handshake inexistente.");
-        }
-
-        if (LocalDateTime.now().isAfter(meta.expiresAt())) {
-            throw new RuntimeException("Timeout: A janela de reentrada expirou.");
-        }
-
-        double elapsed = (System.currentTimeMillis() - meta.createdAtMillis()) / 1000.0;
-
-        // Validação estrita conforme sua regra: 2.8s a 3.10s
-        if (elapsed < meta.minWait()) {
-            throw new RuntimeException("Violação de integridade: Resposta rápida demais.");
-        }
+        // 2. Extrai e retorna apenas o token de acesso à rota /anonymous
+        @SuppressWarnings("unchecked")
+        Map<String, Object> anonymousPass = (Map<String, Object>) publicHandshakeResult.get("anonymousPass");
         
-        if (elapsed > 4.5) { // Margem de segurança para o teto de 3.10s + processamento
-             throw new RuntimeException("Violação de integridade: Resposta tardia.");
-        }
-
-        applyArtificialDelay(meta.internalDelay());
+        log.info("[SERVICE SESSION - FASE 2] Handshake fechado com sucesso. Emitindo passaporte /anonymous.");
+        return anonymousPass;
     }
 
-    private void applyArtificialDelay(long delay) {
-        try {
-            Thread.sleep(delay);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-    }
+
+    // =========================================================================
+    // OPERAÇÕES CRUD DA SESSÃO (PERSISTÊNCIA DE NEGÓCIO)
+    // =========================================================================
 
     /**
-     * Criação de sessão após validação completa.
+     * CREATE: ROTA /anonymous (Fase Final de Negócio)
+     * Executado quando o cliente consome com sucesso seu token ANONYMOUS_PASS no controller.
+     * Cria e persiste no banco uma sessão anônima válida.
      */
     public Session createAnonymous(String ipAddress, String userAgent) {
+        log.info("[SERVICE SESSION - CRUD] Criando nova sessão anônima persistente. IP: {}", ipAddress);
+        
         UUID sessionId = UUID.randomUUID();
-
-        // Gera o JWT com base no UUID da sessão e define a expiração para 30 dias
         String jwt = jwtService.generateToken(sessionId.toString(), 30L * 24 * 60 * 60 * 1000);
 
         Session session = new Session();
@@ -131,10 +121,40 @@ public class ServiceSession {
         session.setExpiresAt(LocalDateTime.now().plusDays(30));
         session.setRevoked(false);
 
-        // O método repository.save disparará o @PrePersist, 
-        // preenchendo automaticamente o 'createdAt' e o 'keyUpdate'.
-        return repository.save(session);
+        Session savedSession = repository.save(session);
+        log.debug("[SERVICE SESSION - CRUD] Sessão anônima criada com ID: {}", savedSession.getId());
+        
+        return savedSession;
     }
+
+    /**
+     * READ: Recupera uma sessão existente.
+     * Utilizado para validações posteriores no ciclo de vida do cliente.
+     */
+    public Session getActiveSession(UUID sessionId) {
+        log.debug("[SERVICE SESSION - CRUD] Buscando sessão ativa: {}", sessionId);
+        return repository.findById(sessionId)
+                .filter(s -> !s.isRevoked())
+                .orElseThrow(() -> new EntityNotFoundException("Sessão inválida, revogada ou não encontrada."));
+    }
+
+    /**
+     * UPDATE (Delete Lógico): Revoga ativamente uma sessão do sistema.
+     */
+    public void revoke(UUID sessionId) {
+        log.info("[SERVICE SESSION - CRUD] Solicitada revogação para a sessão: {}", sessionId);
+        Session session = repository.findById(sessionId)
+                .orElseThrow(() -> new EntityNotFoundException("Session não encontrada para revogação."));
+        
+        session.setRevoked(true);
+        repository.save(session);
+        log.info("[SERVICE SESSION - CRUD] Sessão {} revogada com sucesso.", sessionId);
+    }
+
+
+    // =========================================================================
+    // UTILITÁRIOS (Cookies, Hash, GeoLoc e Integração Limpeza)
+    // =========================================================================
 
     public ResponseCookie generateSessionCookie(String encryptedValue) {
         return ResponseCookie.from("nameSessionKey", encryptedValue)
@@ -152,6 +172,7 @@ public class ServiceSession {
                     .digest((ip + "|" + userAgent).getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(hash);
         } catch (NoSuchAlgorithmException e) {
+            log.error("[SERVICE SESSION - UTILS] Erro interno na geração de hash do fingerprint.", e);
             throw new RuntimeException("Erro interno de hash");
         }
     }
@@ -160,48 +181,23 @@ public class ServiceSession {
         try {
             return geoLocationService.getCountryByIp(ipAddress);
         } catch (Exception e) {
+            log.warn("[SERVICE SESSION - UTILS] Falha de GeoLoc para IP {}. Fallback para UNKNOWN. Motivo: {}", ipAddress, e.getMessage());
             return "UNKNOWN";
         }
     }
 
+    /**
+     * Pega o segredo em RAM sem expor o DHModel.
+     */
     public String getSecretByToken(String token) {
         return cryptoHelper.getSecretByToken(token);
     }
 
     /**
-     * Emite o token de passagem (TTL 15s) após o handshake DH ser concluído.
-     * O cliente deve apresentá-lo no header X-Anonymous-Token para acessar /anonymous.
+     * Dispara a limpeza imediata dos mapas e objetos da memória principal.
      */
-    
-    
-
-
-
-    public Map<String, Object> issueAnonymousPassToken() {
-    // Delega a criação, o registro no mapa e o cálculo do minWait totalmente para o Helper
-    return cryptoHelper.generateAnonymousToken();
-}
-
-public void consumeAnonymousPassToken(String token) {
-    // Delega a validação (Timing + Expiração) e a remoção do mapa para o Helper
-    cryptoHelper.consumeAnonymousToken(token);
-}
-
-
-    public Session refreshSessionData(String sessionCipher) {
-        return repository.findAll().stream()
-                .filter(s -> !s.isRevoked())
-                .findFirst()
-                .orElseThrow(() -> new EntityNotFoundException("Sessão inválida ou expirada."));
-    }
-
-    public void revoke(UUID sessionId) {
-        Session session = repository.findById(sessionId)
-                .orElseThrow(() -> new EntityNotFoundException("Session não encontrada"));
-        session.setRevoked(true);
-    }
-    
     public void cleanup(String token) {
+        log.info("[SERVICE SESSION - CLEANUP] Solicitando descarte de memória ao CryptoHelper para token: {}", token);
         cryptoHelper.fullCleanup(token);
     }
 }

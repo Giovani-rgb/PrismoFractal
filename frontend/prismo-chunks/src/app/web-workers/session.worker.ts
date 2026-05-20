@@ -6,50 +6,61 @@ addEventListener('message', async ({ data }) => {
   const { action } = data;
 
   try {
-    // NOVA AÇÃO: Estágio inicial para gerar B e preencher o modelo
+    // FASE 1: Ignição - Gera chaves locais do cliente e retorna o modelo base
     if (action === 'STAGE_DH') {
-      const model = await handleStageDH(data);
-      postMessage({ success: true, data: model } as DHResult);
+      const model: DiffieHellmanModel = await handleStageDH(data);
+
+      // Retorna o sucesso acoplado com as propriedades puras do DiffieHellmanModel
+      postMessage({ success: true, ...model });
       return;
     }
 
-    // AÇÃO ORIGINAL: Cálculo imediato do Segredo (se necessário)
+    // FASE 2: Fechamento - Calcula a Shared Secret final e retorna o DHResult
     if (action === 'HANDSHAKE') {
       const result = await handleHandshake(data);
-      postMessage({ success: true, ...result });
+
+      const response: DHResult = {
+        success: true,
+        B: result.B,
+        sharedSecret: result.sharedSecret,
+        _b: result._b
+      };
+
+      postMessage(response);
       return;
     }
 
+    // FASE 3: Consumo - Descriptografia do payload sanitizado vindo do Spring Boot
     if (action === 'PROCESS_SESSION') {
       const result = await handleProcessSession(data);
       postMessage({ success: true, ...result });
       return;
     }
 
-    throw new Error(`Ação desconhecida: ${action}`);
+    throw new Error(`Ação criptográfica desconhecida na esteira: ${action}`);
 
   } catch (error: any) {
+    // Alinhamento de erro seguindo o contrato estrito de falha do DHResult
     postMessage({ success: false, error: error.message } as DHResult);
   }
 });
 
 /**
- * STAGE_DH: Geração do material do cliente (Stage 1)
- * Retorna o DiffieHellmanModel preenchido com _b e B.
+ * STAGE_DH: Primeira fase do cálculo do cliente.
+ * Alinhado para retornar estritamente o DiffieHellmanModel.
  */
 async function handleStageDH(params: { p: string, g: string }): Promise<DiffieHellmanModel> {
   const p = BigInt('0x' + params.p);
   const g = BigInt(params.g);
 
-  // 1. Gera o segredo privado '_b' (2048 bits)
+  // 1. Matriz de Entropia: Gera o segredo privado '_b' (2048 bits)
   const bBytes = new Uint8Array(256);
   self.crypto.getRandomValues(bBytes);
   const _bBig = BigInt('0x' + Array.from(bBytes).map(b => b.toString(16).padStart(2, '0')).join('')) % p;
 
-  // 2. Calcula B = g^_b mod p
+  // 2. Cálculo modular: B = g^_b mod p
   const BBig = power(g, _bBig, p);
 
-  // 3. Monta e retorna o modelo DH exato
   return {
     p: params.p,
     g: params.g,
@@ -59,24 +70,22 @@ async function handleStageDH(params: { p: string, g: string }): Promise<DiffieHe
 }
 
 /**
- * CÁLCULO MATEMÁTICO DIFFIE-HELLMAN (Stage 2)
- * Pode ser chamado separadamente enviando o modelo salvo no contexto.
+ * HANDSHAKE: Fase final do cálculo.
+ * Executa a combinação matemática utilizando a chave A do servidor e a chave privada _b.
  */
-async function handleHandshake(params: any) {
+async function handleHandshake(params: DiffieHellmanModel & { A: string }) {
   const p = BigInt('0x' + params.p);
   const g = BigInt(params.g);
   const A = BigInt('0x' + params.A);
-  
-  // Se vier um _b no params, usamos ele, senão geramos um novo (fallback)
-  let b: bigint;
-  if (params._b) {
-    b = BigInt('0x' + params._b);
-  } else {
-    const bBytes = new Uint8Array(256);
-    self.crypto.getRandomValues(bBytes);
-    b = BigInt('0x' + Array.from(bBytes).map(b => b.toString(16).padStart(2, '0')).join('')) % p;
+
+  // Resgata o _b gerado no STAGE_DH que ficou custodiado no contexto do Angular
+  if (!params._b) {
+    throw new Error("Handshake abortado: Chave privada primária (_b) ausente no contexto enviado.");
   }
 
+  const b = BigInt('0x' + params._b);
+
+  // Recalcula/Confirma B e resolve o segredo compartilhado final: S = A^_b mod p
   const B = power(g, b, p);
   const S = power(A, b, p);
 
@@ -88,9 +97,9 @@ async function handleHandshake(params: any) {
 }
 
 /**
- * PROCESSAMENTO DE SESSÃO (Decrypt & Porta XOR)
+ * PROCESS_SESSION: Descriptografia e validação por porta XOR do payload da sessão.
  */
-async function handleProcessSession(data: any) {
+async function handleProcessSession(data: { raw: any, secret: string }) {
   const { raw, secret } = data;
   const session = await decryptData(raw, secret);
 
@@ -100,11 +109,12 @@ async function handleProcessSession(data: any) {
     session.lastAccessAt = transformJavaDate(session.lastAccessAt);
   }
 
+  // Barreira de consistência estrutural (Porta XOR)
   const size = new Blob([JSON.stringify(session)]).size;
   const density = Math.log(size || 1);
 
   if (!(size ^ Math.floor(density)) || size === 0 || !session?.id_prospect) {
-    throw new Error("Porta XOR: Falha de veracidade ou conformidade.");
+    throw new Error("Porta XOR: Quebra de veracidade ou payload corrompido.");
   }
 
   return {
@@ -115,7 +125,7 @@ async function handleProcessSession(data: any) {
 }
 
 /**
- * Auxiliar: Exponenciação Modular
+ * Utilitário estável para Exponenciação Modular (Algoritmo de Quadrados Repetidos)
  */
 function power(base: bigint, exp: bigint, mod: bigint): bigint {
   let res = BigInt(1);
@@ -128,6 +138,9 @@ function power(base: bigint, exp: bigint, mod: bigint): bigint {
   return res;
 }
 
+/**
+ * Normaliza arrays de timestamps do Java LocalDateTime para o padrão Unix Epoch do JavaScript
+ */
 function transformJavaDate(dateData: any): number {
   if (Array.isArray(dateData) && dateData.length >= 3) {
     const [year, month, day, hour = 0, min = 0, sec = 0, ms = 0] = dateData;
