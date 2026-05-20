@@ -117,19 +117,22 @@ public class ServiceSession {
      */
     public Session createAnonymous(String ipAddress, String userAgent) {
         UUID sessionId = UUID.randomUUID();
+
+        // Gera o JWT com base no UUID da sessão e define a expiração para 30 dias
         String jwt = jwtService.generateToken(sessionId.toString(), 30L * 24 * 60 * 60 * 1000);
 
         Session session = new Session();
         session.setId(sessionId);
         session.setIpAddress(ipAddress);
         session.setUserAgent(userAgent);
-        session.setCountry(resolveCountrySafely(ipAddress));
-        session.setFingerprint(generateFingerprint(ipAddress, userAgent));
         session.setToken(jwt);
-        session.setCreatedAt(LocalDateTime.now());
+        session.setFingerprint(generateFingerprint(ipAddress, userAgent));
+        session.setCountry(resolveCountrySafely(ipAddress));
         session.setExpiresAt(LocalDateTime.now().plusDays(30));
         session.setRevoked(false);
 
+        // O método repository.save disparará o @PrePersist, 
+        // preenchendo automaticamente o 'createdAt' e o 'keyUpdate'.
         return repository.save(session);
     }
 

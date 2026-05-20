@@ -1,23 +1,45 @@
-<div class="landing">
-  <pre class="ascii-logo">
-  _____  _____  _____  _____  __  __  ____  
- |  __ \|  __ \|_   _|/ ____||  \/  |/ __ \ 
- | |__) | |__) | | | | (___  | \  / | |  | |
- |  ___/|  _  /  | |  \___ \ | |\/| | |  | |
- | |    | | \ \ _| |_ ____) || |  | | |__| |
- |_|    |_|  \_\_____|_____/ |_|  |_|\____/ 
-  </pre>
-  <p>Music. Patterns. Worlds.</p>
-  <button (click)="enter()">ENTER APP</button>
-  
-  <div class="music-notes">
-  <span class="note">♩ ♪ ♫</span>
-  <span class="note">♬ ♩</span>
-  <span class="note">♫ ♬ ♪</span>
-  <span class="note">♩ ♬</span>
-  <span class="note">♪ ♫ ♩</span>
-  <span class="note">♬</span>
-  <span class="note">♩ ♪ ♫ ♬</span>
-  <span class="note">♪ ♬</span>
+<div class="landing-wrapper">
+  <canvas #landingCanvas></canvas>
+
+  <div class="content-overlay">
+    <div class="logo-zone"></div> 
+    
+    <div class="auth-zone"> 
+      <div class="physical-vinyl">
+        <div class="vinyl-disc-object">
+          <div class="shine-effect"></div>
+        </div>
+        
+        <div class="static-label">
+          <div class="label-inner">
+            <button class="btn-auth google" (click)="login('google')">[ LOGIN WITH GOOGLE ]</button>
+            <button class="btn-auth fb" (click)="login('facebook')">[ LOGIN WITH FACEBOOK ]</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
+
+  <nav class="bottom-bar-fixed">
+    <div class="nav-item">
+      <span class="icon">⌂</span>
+      <span class="label">HOME</span>
+    </div>
+    <div class="nav-item">
+      <span class="icon">🧭</span>
+      <span class="label">EXPLORAR</span>
+    </div>
+    <div class="nav-item active">
+      <span class="icon-main">🎙</span>
+      <span class="label">CRIAR</span>
+    </div>
+    <div class="nav-item">
+      <span class="icon">💽</span>
+      <span class="label">BIBLIOTECA</span>
+    </div>
+    <div class="nav-item">
+      <span class="icon">🔔</span>
+      <span class="label">SOCIAL</span>
+    </div>
+  </nav>
 </div>

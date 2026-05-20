@@ -1,132 +1,164 @@
-.landing {
-  height: 100%;
-  width: 100%;
-  background: linear-gradient(#111, #05050f);
-  color: #fff;
-  font-family: 'Press Start 2P', monospace;
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
-  display: flex;
-  flex-direction: column;
-  /* Mudamos de center para space-between ou flex-start para controlar o topo */
-  justify-content: flex-start; 
-  align-items: center;
-  text-align: center;
+// Variáveis
+$primary-cyan: #00e5ff;
+$font-game: 'Press Start 2P', cursive;
+$font-mono: 'Courier New', monospace;
 
-  /* Ressalva das bordas (Safe area) */
-  padding: 40px 20px; 
-  box-sizing: border-box;
-  overflow: hidden; /* Evita scroll por causa das notas subindo */
+.landing-wrapper {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: #000;
   position: relative;
 }
 
-.ascii-logo {
-  /* Garante que o logo tenha respiro e seja a primeira coisa no topo */
-  margin-top: 10px; 
-  margin-bottom: auto; /* Empurra o restante do conteúdo (h1, p, button) para o centro/baixo */
-
-  /* Importante: ASCII Art precisa de fonte monoespaçada para não quebrar o desenho */
-  font-family: 'Courier New', monospace; 
-  font-size: clamp(10px, 2vw, 20px); /* Escala o tamanho conforme a tela */
-  white-space: pre; /* Mantém os espaços do ASCII */
-  font-weight: bold;
-  color: white;
-  line-height: 1.1;
-
-  /* Efeito 3D Arco-íris */
-  text-shadow: 
-    1px 1px #ff0055, 
-    2px 2px #ffb300, 
-    3px 3px #00e5ff, 
-    4px 4px #7000ff;
-
-  animation: float 4s ease-in-out infinite;
-  z-index: 1;
-}
-
-/* Agrupando o texto e o botão para ficarem centralizados no espaço restante */
-h1, p, button {
-  position: relative;
-  z-index: 1;
-}
-
-h1 {
-  font-size: 24px;
-  margin-bottom: 10px;
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-15px); }
-}
-
-button {
-  margin-top: 24px;
-  margin-bottom: 60px; /* Distância da borda inferior */
-  padding: 12px 24px;
-  font-family: inherit;
-  font-size: 12px;
-  background: transparent;
-  border: 2px solid #fff;
-  color: #fff;
-  cursor: pointer;
-  transition: all 0.3s ease;
-
-  &:hover {
-    background: #fff;
-    color: #000;
-    box-shadow: 0 0 15px rgba(255, 255, 255, 0.5);
-  }
-}
-
-
-.music-notes {
+canvas {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  pointer-events: none;
-  z-index: 2;
-  overflow: hidden;
+  z-index: 1;
+  display: block; // Remove espaços vazios de renderização
+  pointer-events: none; // Permite clicar no que estiver atrás (se precisar)
+}
+.content-overlay {
+  position: relative;
+  z-index: 5;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
-.note {
-  position: absolute;
-  top: -50px; /* Começa acima da tela */
-  font-family: monospace;
-  font-size: 20px;
-  color: rgba(255, 255, 255, 0.8);
-  /* Brilho neon suave nas notas */
-  text-shadow: 0 0 8px rgba(0, 229, 255, 0.8), 0 0 15px rgba(255, 0, 85, 0.5);
-  writing-mode: vertical-rl; /* Faz o texto ficar em coluna se houver mais de um */
-  user-select: none;
-  animation: matrix-rain linear infinite;
+.logo-zone {
+  flex: 2;
 }
 
-@keyframes matrix-rain {
-  0% {
-    transform: translateY(0);
-    opacity: 0;
+.auth-zone {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding-bottom: 70px;
+}
+
+/* --- VINIL FÍSICO --- */
+.physical-vinyl {
+  position: relative;
+  width: 280px;
+  height: 280px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  .vinyl-disc-object {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: radial-gradient(circle, #222 0%, #050505 100%);
+    border: 4px solid #111;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.9);
+    animation: spin-vinyl 8s linear infinite;
+
+    &::after {
+      content: "";
+      position: absolute;
+      inset: 8px;
+      border-radius: 50%;
+      background: repeating-radial-gradient(circle, transparent 0, transparent 2px, rgba(255,255,255,0.03) 3px);
+    }
   }
-  10% {
-    opacity: 0.8;
+
+  .shine-effect {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: conic-gradient(from 0deg, transparent 0%, rgba(255,255,255,0.04) 25%, transparent 50%, rgba(255,255,255,0.04) 75%, transparent 100%);
+    z-index: 2;
   }
-  90% {
-    opacity: 0.6;
-  }
-  100% {
-    transform: translateY(110vh);
-    opacity: 0;
+
+  .static-label {
+    position: absolute;
+    width: 130px;
+    height: 130px;
+    background: #fff;
+    border-radius: 50%;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: inset 0 0 15px rgba(0,0,0,0.3);
+    
+    .label-inner {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      padding: 15px;
+
+      .btn-auth {
+        background: #000;
+        color: #fff;
+        border: 1px solid #000;
+        padding: 6px;
+        font-family: $font-mono;
+        font-size: 8px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: 0.2s;
+
+        &:hover {
+          background: $primary-cyan;
+          color: #000;
+        }
+      }
+    }
   }
 }
 
-/* Criando variações de velocidade e posição para o efeito "Rain" */
-/* Adicionei mais notas aqui para preencher a tela */
-.note:nth-child(1) { left: 5%;  animation-duration: 4s;  animation-delay: 0.5s; font-size: 14px; }
-.note:nth-child(2) { left: 15%; animation-duration: 6s;  animation-delay: 2s;   font-size: 22px; }
-.note:nth-child(3) { left: 25%; animation-duration: 3.5s; animation-delay: 1.2s; font-size: 18px; }
-.note:nth-child(4) { left: 40%; animation-duration: 5.5s; animation-delay: 0s;   font-size: 26px; }
-.note:nth-child(5) { left: 55%; animation-duration: 4.5s; animation-delay: 3s;   font-size: 16px; }
-.note:nth-child(6) { left: 70%; animation-duration: 7s;   animation-delay: 1.5s; font-size: 20px; }
-.note:nth-child(7) { left: 85%; animation-duration: 3s;   animation-delay: 0.8s; font-size: 12px; }
-.note:nth-child(8) { left: 95%; animation-duration: 5s;   animation-delay: 2.5s; font-size: 24px; }
+/* --- BOTTOM BAR --- */
+// A barra agora é uma "âncora" inabalável
+.bottom-bar-fixed {
+  position: fixed; // Muda de absolute para fixed
+  bottom: 0;
+  left: 0;         // Garante que comece no canto esquerdo
+  width: 100%;
+  height: 65px;
+  background: rgba(5, 5, 5, 0.95); // Mais escuro para contraste
+  border-top: 1px solid #333;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  z-index: 999;    // Valor bem alto para ficar acima de TUDO (Canvas e Overlay)
+  backdrop-filter: blur(10px);
+  padding-bottom: env(safe-area-inset-bottom); // Suporte para iPhones novos
+  .nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: rgba(255,255,255,0.4);
+    cursor: pointer;
+    
+    .icon { font-size: 18px; margin-bottom: 2px; }
+    .label { font-size: 7px; font-weight: bold; letter-spacing: 1px; }
+
+    &.active {
+      color: #fff;
+      .icon-main { 
+        font-size: 24px; 
+        color: $primary-cyan;
+        filter: drop-shadow(0 0 8px $primary-cyan);
+      }
+      .label { color: $primary-cyan; }
+    }
+  }
+
+  
+}
+
+
+@keyframes spin-vinyl { 
+  from { transform: rotate(0deg); } 
+  to { transform: rotate(360deg); } 
+}

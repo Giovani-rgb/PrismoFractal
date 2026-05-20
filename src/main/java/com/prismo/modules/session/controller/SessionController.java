@@ -36,40 +36,40 @@ public class SessionController {
      *          → retorna {status, anonymousToken}
      */
     @PostMapping("/public")
-    public ResponseEntity<Map<String, Object>> establishPublicHandshake(
-            @RequestBody(required = false) Map<String, String> clientPayload,
-            @RequestHeader(value = "X-Window-Token", required = false) String windowToken
-    ) {
-        try {
-            if (clientPayload == null || !clientPayload.containsKey("B")) {
-                Map<String, Object> dhParams = service.generateServerHandshake();
-                return ResponseEntity.ok(dhParams);
-            }
-
-            if (windowToken == null || windowToken.isBlank()) {
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body(Map.of("error", "Token de janela ausente."));
-            }
-
-            service.finalizeSharedSecret(windowToken, clientPayload.get("B"));
-
-            // Agora o issue retorna um Map ou um objeto com o Token e o Tempo
-Map<String, Object> anonymousData = service.issueAnonymousPassToken();
-
-return ResponseEntity.ok(Map.of(
-        "status", "established",
-        "anonymousToken", anonymousData.get("token"),
-        "minWait", anonymousData.get("minWait") // Tempo para a próxima chamada
-));
-
-        } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(Map.of("error", e.getMessage()));
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Erro interno no handshake."));
+public ResponseEntity<Map<String, Object>> establishPublicHandshake(
+        @RequestBody(required = false) Map<String, String> clientPayload,
+        @RequestHeader(value = "X-Window-Token", required = false) String windowToken
+) {
+    try {
+        if (clientPayload == null || !clientPayload.containsKey("B")) {
+            Map<String, Object> dhParams = service.generateServerHandshake();
+            return ResponseEntity.ok(dhParams);
         }
+
+        if (windowToken == null || windowToken.isBlank()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", "Token de janela ausente."));
+        }
+
+        service.finalizeSharedSecret(windowToken, clientPayload.get("B"));
+
+        // O seu Service já devolve o Map pronto com status, token e minWait
+        Map<String, Object> anonymousData = service.issueAnonymousPassToken();
+
+        // Retorne diretamente o anonymousData para não ter erro de mapeamento manual
+        return ResponseEntity.ok(anonymousData);
+
+    } catch (RuntimeException e) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Map.of("error", e.getMessage()));
+    } catch (Exception e) {
+        // Logue o erro no console do Java para ver o stacktrace real se o 500 persistir
+        e.printStackTrace(); 
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "Erro interno no handshake: " + e.getMessage()));
     }
+}
+
 
     /**
      * ROTA REFRESH: Atualiza os claims do token através do Cookie.
@@ -123,7 +123,10 @@ return ResponseEntity.ok(Map.of(
     }
 
     private String extractIp(HttpServletRequest request) {
-        String ip = request.getHeader("X-Forwarded-For");
-        return (ip == null || ip.isBlank()) ? request.getRemoteAddr() : ip;
+        String forwarded = request.getHeader("X-Forwarded-For");
+        String ip = (forwarded == null || forwarded.isBlank())
+                ? request.getRemoteAddr()
+                : forwarded.split(",")[0].trim();
+        return ip.length() > 45 ? ip.substring(0, 45) : ip;
     }
 }

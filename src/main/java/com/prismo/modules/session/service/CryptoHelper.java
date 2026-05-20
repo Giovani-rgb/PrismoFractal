@@ -7,8 +7,8 @@ import java.math.BigInteger;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.UUID;
 
 /**
  * Encapsula a lógica matemática e os estados temporários do handshake.
@@ -132,6 +132,6 @@ public class CryptoHelper {
     public void fullCleanup(String token) {
         dhContexts.remove(token);
         reentryWindows.remove(token);
-        activeSecrets.remove(token);
+        activeSecrets.remove(token);anonymousPassTokens.remove(token);
     }
 }

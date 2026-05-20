@@ -16,17 +16,17 @@ public class Session {
     private UUID userId;
 
     // JWT real
-    @Column(nullable = false, unique = true, length = 1000)
+    @Column(nullable = false, unique = true, length = 1024)
     private String token;
 
     // Identificador do dispositivo
-    @Column(nullable = false, length = 128)
+    @Column(name = "fingerprint", nullable = false, length = 255)
     private String fingerprint;
 
     @Column(name = "ip_address", nullable = false, length = 45)
     private String ipAddress;
 
-    @Column(nullable = false, length = 500)
+    @Column(name = "user_agent", nullable = false, length = 512)
     private String userAgent;
 
     @Column(length = 100)
@@ -151,3 +151,5 @@ public class Session {
         this.keyUpdate = keyUpdate;
     }
 }
+
+   
