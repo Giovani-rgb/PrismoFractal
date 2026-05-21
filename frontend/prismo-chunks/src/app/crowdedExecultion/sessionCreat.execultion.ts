@@ -30,8 +30,8 @@ export class SessionCreationExecution {
       const dhParams = await this.orchestrator.executeAssignment();
       const startTime = Date.now();
 
-      console.log(`%c🔑 [CRYPTO]%c Handshake iniciado. Token: ${dhParams.windowToken}`, LOG_STYLES.crypto, '');
-      (window as any)._sessionToken = dhParams.windowToken;
+      console.log(`%c🔑 [CRYPTO]%c Handshake iniciado. Token: ${dhParams.reentryToken}`, LOG_STYLES.crypto, '');
+      (window as any)._sessionToken = dhParams.reentryToken;
 
       // 2. STAGE 1: Worker calcula as chaves locais do cliente (Retorna o DiffieHellmanModel)
       const dhContext = await SessionWorkerPipe.stage_dh({ p: dhParams.p, g: dhParams.g });

@@ -7,7 +7,7 @@ $font-mono: 'Courier New', monospace;
 
 .landing-wrapper {
   width: 100vw;
-  height: 100vh;
+  height: 92vh;
   overflow: hidden;
   background: #000;
   position: relative;
@@ -15,10 +15,11 @@ $font-mono: 'Courier New', monospace;
 
 canvas {
   position: absolute;
+  border: solid 1px #f0f;
   top: 0;
   left: 0;
   width: 100%;
-  height: 100%;
+  height: 55%;
   z-index: 1;
   display: block; // Remove espaços vazios de renderização
   pointer-events: none; // Permite clicar no que estiver atrás (se precisar)
@@ -39,6 +40,7 @@ canvas {
   flex: 1;
   display: flex;
   justify-content: center;
+  higth: 45%;
   align-items: center;
   padding-bottom: 70px;
 }
@@ -46,6 +48,7 @@ canvas {
 /* --- VINIL FÍSICO --- */
 .physical-vinyl {
   position: relative;
+  padding-top: 10px;
   width: 280px;
   height: 280px;
   display: flex;

@@ -58,9 +58,5 @@ export class SessionService {
     }
   }
 
-  clearStorage(): void {
-    sessionStorage.removeItem(this.STORAGE_KEY);
-    // Limpa também o token de memória do interceptor
-    (window as any)._sessionToken = null;
-  }
+  
 }

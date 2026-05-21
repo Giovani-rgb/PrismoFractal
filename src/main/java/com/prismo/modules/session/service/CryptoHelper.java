@@ -59,23 +59,34 @@ public class CryptoHelper {
      * @param clientToken O identificador gerado ou recebido para indexar este início de fluxo.
      * @return O modelo DH contendo os parâmetros iniciais e a chave pública 'A'.
      */
-    public DiffieHellmanModel initiatePublicContext(String clientToken) {
+    public Map<String, Object> initiatePublicContext(String clientToken) {
         log.info("[ROTA /public - PARTE 1] Iniciando Handshake. Abrindo janela de reentrada.");
 
-        // 1. Cria a janela de tempo (REENTRY_WINDOW) para o cliente retornar e se validar na rota pública
-        antiBotManager.createNewWindow(clientToken);
+        // 1. Cria a janela de tempo (REENTRY_WINDOW) e captura o mapa com as regras anti-bot
+        Map<String, Object> antiBotData = antiBotManager.createNewWindow(clientToken);
         log.debug("[ROTA /public - PARTE 1] REENTRY_WINDOW registrada para o token: {}", clientToken);
 
         // 2. Executa a primeira parte do cálculo matemático (A = g^_a mod p)
         log.debug("[ROTA /public - PARTE 1] Computando expoente privado efêmero de 2048-bits...");
         BigInteger _a = new BigInteger(2048, secureRandom).mod(P_DH);
         BigInteger A = G_DH.modPow(_a, P_DH);
-        
+
+        // O modelo completo (com o segredo privado '_a') continua salvo com segurança no servidor
         DiffieHellmanModel ctx = new DiffieHellmanModel(P_DH, G_DH, _a, A);
         dhContexts.put(clientToken, ctx);
 
         log.info("[ROTA /public - PARTE 1] Sucesso. Chave pública 'A' calculada. Aguardando retorno do cliente.");
-        return ctx;
+
+        // 3. Mescla os dados do Diffie-Hellman com os dados do Anti-Bot
+        // Usamos um HashMap baseado no antiBotData para herdar "reentryToken", "minWait" e "status" automaticamente
+        Map<String, Object> responsePayload = new java.util.HashMap<>(antiBotData);
+
+        // Adiciona apenas as partes PÚBLICAS do DH que o front precisa para calcular o segredo dele
+        responsePayload.put("p", P_DH.toString(16)); // .toString() evita problemas de precisão numérica no ecossistema JS/TS
+        responsePayload.put("g", G_DH.toString(16));
+        responsePayload.put("A", A.toString(16));
+
+        return responsePayload;
     }
 
     // =========================================================================

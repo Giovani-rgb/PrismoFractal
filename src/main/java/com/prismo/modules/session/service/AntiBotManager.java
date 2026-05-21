@@ -18,10 +18,15 @@ public class AntiBotManager {
     /**
      * Registra uma nova janela de reentrada de fluxo.
      */
-    public AntiBotMetadata createNewWindow(String token) {
+    public Map<String, Object> createNewWindow(String token) {
         AntiBotMetadata meta = new AntiBotMetadata(token, AntiBotTokenType.REENTRY_WINDOW);
         antiBotTokens.put(token, meta);
-        return meta;
+
+        return Map.of(
+            "reentryToken", token,
+            "minWait", meta.getMinWaitSeconds(),
+            "status", "window_established"
+        );
     }
 
     /**

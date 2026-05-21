@@ -53,24 +53,20 @@ public class ServiceSession {
      * @return Payload para o cliente processar sua própria chave local e conhecer seu ticket de retorno.
      */
     public Map<String, Object> handlePublicInit() {
-        log.info("[SERVICE SESSION - FASE 1] Inicializando contexto seguro para nova conexão.");
-        
-        // 1. O ServiceSession assume o controle de criar o ticket de identificação
-        String windowToken = UUID.randomUUID().toString();
-        
-        // 2. Passa o bastão para o CryptoHelper abrir o contexto DH e travar a janela no AntiBot
-        DiffieHellmanModel dhModel = cryptoHelper.initiatePublicContext(windowToken);
+    log.info("[SERVICE SESSION - FASE 1] Inicializando contexto seguro para nova conexão.");
+    
+    // 1. O ServiceSession assume o controle de criar o ticket de identificação
+    String windowToken = UUID.randomUUID().toString();
+    
+    // 2. O CryptoHelper agora faz o trabalho pesado e já devolve o Map completo (DH + AntiBot)
+    Map<String, Object> publicPayload = cryptoHelper.initiatePublicContext(windowToken);
 
-        log.debug("[SERVICE SESSION - FASE 1] Parâmetros DH gerados com sucesso para o token: {}", windowToken);
+    log.debug("[SERVICE SESSION - FASE 1] Parâmetros DH e Anti-Bot gerados com sucesso para o token: {}", windowToken);
 
-        // 3. Retorna apenas a estrutura pública que o frontend (web-worker) precisa
-        return Map.of(
-                "p", dhModel.getP().toString(16),
-                "g", dhModel.getG().toString(16),
-                "A", dhModel.getA().toString(16),
-                "windowToken", windowToken
-        );
-    }
+    // 3. Retorna a estrutura unificada direta para o Controller / Frontend
+    return publicPayload;
+}
+
 
     /**
      * FASE 2: ROTA /public (Fechamento do Handshake / Callback do Cliente)
