@@ -16,8 +16,14 @@ public enum AntiBotTokenType {
      * Token de passagem de uso único emitido na saída de /public e consumido em /anonymous.
      * Expira estritamente em 15 segundos.
      */
-    ANONYMOUS_PASS(15, 2.60, 0.30);
+    ANONYMOUS_PASS(15, 2.60, 0.30),
 
+    /**
+     * Token de finalização da rota "/anonymous".
+     * Congela (freeza) a rota por 20 minutos (1200 segundos).
+     */
+    ANONYMOUS_FREEZER(1200, 19.60, 0.30);
+    
     private final int ttlSeconds;
     private final double baseMinWaitSeconds;
     private final double randomFactor;

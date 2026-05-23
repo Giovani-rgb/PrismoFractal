@@ -46,6 +46,23 @@ public class AntiBotManager {
     }
 
     /**
+     * Emite um token de congelamento (freezer) de longa duração para finalizar o fluxo.
+     * Mantém a rota protegida sob as regras de 20 minutos definidas no Enum.
+     */
+    public Map<String, Object> generateFreezerToken() {
+        String token = UUID.randomUUID().toString();
+
+        AntiBotMetadata meta = new AntiBotMetadata(token, AntiBotTokenType.ANONYMOUS_FREEZER);
+        antiBotTokens.put(token, meta);
+
+        return Map.of(
+            "freezerToken", token,
+            "minWait", meta.getMinWaitSeconds(),
+            "status", "frozen"
+        );
+    }
+
+    /**
      * Consome e valida qualquer token genérico passando as validações anti-bot.
      */
     public void consumeAndValidateToken(String token, AntiBotTokenType expectedType) {

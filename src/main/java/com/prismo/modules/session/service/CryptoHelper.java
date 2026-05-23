@@ -142,6 +142,70 @@ public class CryptoHelper {
         );
     }
 
+
+        // =========================================================================
+    // ETAPA 3: CONSOLIDAR E CONGELAR FLUXO (Geração do Objeto de Permissão de Navegação)
+    // =========================================================================
+    /**
+     * Organiza a transição do fluxo anônimo para o estado estável de longa duração (Freezer),
+     * construindo o objeto completo de permissão de navegação, escopos RWU e regras de interação.
+     *
+     * @param currentAnonymousToken Token usado na rota /anonymous que será substituído.
+     * @return Map contendo o payload consolidado de autorização para o ecossistema do app.
+     */
+    public Map<String, Object> upgradeToFreezerContext(String currentAnonymousToken) {
+        log.info("[CRYPTO HELPER] Processando upgrade de rota. Construindo permissões do Freezer.");
+
+        // 1. Localiza e remove o contexto DH antigo para evitar reaproveitamento
+        DiffieHellmanModel ctx = dhContexts.remove(currentAnonymousToken);
+        if (ctx == null) {
+            log.error("[FREEZER] Falha crítica: Contexto matemático não encontrado para o token: {}", currentAnonymousToken);
+            throw new RuntimeException("Sessão criptográfica inconsistente ou já revogada.");
+        }
+
+        // 2. Gera a credencial estável através do AntiBotManager
+        Map<String, Object> freezerData = antiBotManager.generateFreezerToken();
+        String freezerToken = (String) freezerData.get("freezerToken");
+
+        // 3. Transfere o contexto matemático para o novo token para manter a decifragem AES viva
+        dhContexts.put(freezerToken, ctx);
+
+        // 4. OBJETO DE NAVEGAÇÃO: Define as diretrizes e caminhos liberados após o congelamento
+        Map<String, Object> navigationPolicy = Map.of(
+            "targetState", "AUTHORIZED_FREEZER",
+            "allowedRoutes", java.util.List.of("/dashboard", "/secure/*"),
+            "originToken", currentAnonymousToken,
+            "freezerToken", freezerToken,
+            "minWaitSeconds", freezerData.get("minWait")
+        );
+
+        // 5. OBJETO RWU: Define os direitos granulares de Leitura (Read), Escrita (Write) e Uso (Use)
+        Map<String, Object> rwuPermissions = Map.of(
+            "read", true,
+            "write", true,
+            "use", true,
+            "inheritedContext", true,
+            "restrictions", java.util.List.of("isolated-session-only")
+        );
+
+        // 6. OBJETO DE INTERAÇÃO: Regras de acoplamento com outros objetos/entidades do sistema
+        Map<String, Object> interactionSpecs = Map.of(
+            "allowedModules", java.util.List.of("session", "core-modules"),
+            "allowCrossModuleCalls", true,
+            "signatureValidated", true,
+            "timestamp", java.time.Instant.now().toString()
+        );
+
+        // 7. PAYLOAD CONSOLIDADO: Incorpora todas as camadas exigidas pelo ecossistema de segurança
+        return Map.of(
+            "status", "navigation_authorized",
+            "navigation", navigationPolicy,
+            "rwu", rwuPermissions,
+            "interactions", interactionSpecs
+        );
+    }
+
+
     // =========================================================================
     // UTILS & LIMPEZA: Consumidos pelas rotas seguintes (/anonymous, etc.)
     // =========================================================================

@@ -1,45 +1,69 @@
 <div class="landing-wrapper">
   <canvas #landingCanvas></canvas>
+  <div class="scanlines"></div>
 
   <div class="content-overlay">
-    <div class="logo-zone"></div> 
-    
-    <div class="auth-zone"> 
-      <div class="physical-vinyl">
-        <div class="vinyl-disc-object">
-          <div class="shine-effect"></div>
-        </div>
-        
-        <div class="static-label">
-          <div class="label-inner">
-            <button class="btn-auth google" (click)="login('google')">[ LOGIN WITH GOOGLE ]</button>
-            <button class="btn-auth fb" (click)="login('facebook')">[ LOGIN WITH FACEBOOK ]</button>
-          </div>
+
+    <section class="hero">
+      <div class="vinyl-wrap">
+        <div class="vinyl-disc">
+          <div class="vinyl-grooves"></div>
+          <div class="vinyl-label"><span>P</span></div>
+          <div class="vinyl-shine"></div>
         </div>
       </div>
+      <div class="hero-text">
+        <p class="hero-eyebrow">[ v1.0 — BETA ]</p>
+        <p class="hero-tagline">Compose. Create.<br>Conquer.</p>
+      </div>
+    </section>
+
+    <div class="feature-strip">
+      <div class="feature-pill"><span class="pill-icon">🌍</span><span>Worlds</span></div>
+      <div class="feature-pill"><span class="pill-icon">🧬</span><span>Melody DNA</span></div>
+      <div class="feature-pill"><span class="pill-icon">💽</span><span>Chunks</span></div>
+      <div class="feature-pill"><span class="pill-icon">🔐</span><span>Anonymous</span></div>
     </div>
+
+    <section class="auth-section">
+      <p class="auth-label">— SELECT LOGIN —</p>
+      <div class="auth-buttons">
+        <button class="btn-login btn-google" (click)="login('google')">
+          <span class="btn-icon google-icon">G</span>
+          <span class="btn-text">Continue with Google</span>
+          <span class="btn-arrow">›</span>
+        </button>
+        <button class="btn-login btn-fb" (click)="login('facebook')">
+          <span class="btn-icon fb-icon">f</span>
+          <span class="btn-text">Continue with Facebook</span>
+          <span class="btn-arrow">›</span>
+        </button>
+      </div>
+      <p class="auth-fine">🔒 Sessions are anonymous &amp; end-to-end encrypted.</p>
+    </section>
+
   </div>
 
-  <nav class="bottom-bar-fixed">
+  <nav class="bottom-bar">
     <div class="nav-item">
-      <span class="icon">⌂</span>
-      <span class="label">HOME</span>
+      <span class="nav-icon">⌂</span>
+      <span class="nav-label">HOME</span>
     </div>
     <div class="nav-item">
-      <span class="icon">🧭</span>
-      <span class="label">EXPLORAR</span>
+      <span class="nav-icon">🧭</span>
+      <span class="nav-label">EXPLORE</span>
     </div>
     <div class="nav-item active">
-      <span class="icon-main">🎙</span>
-      <span class="label">CRIAR</span>
+      <span class="nav-icon-main">🎙</span>
+      <span class="nav-label">CREATE</span>
     </div>
     <div class="nav-item">
-      <span class="icon">💽</span>
-      <span class="label">BIBLIOTECA</span>
+      <span class="nav-icon">💽</span>
+      <span class="nav-label">LIBRARY</span>
     </div>
     <div class="nav-item">
-      <span class="icon">🔔</span>
-      <span class="label">SOCIAL</span>
+      <span class="nav-icon">🔔</span>
+      <span class="nav-label">SOCIAL</span>
     </div>
   </nav>
 </div>

@@ -93,7 +93,7 @@ public class SessionController {
      * Consome o anonymousToken do handshake, cria a sessão e encripta a resposta
      * com o Shared Secret DH efêmero (descriptografado pelo frontend no Worker).
      */
-    @PostMapping("/anonymous")
+        @PostMapping("/anonymous")
     public ResponseEntity<?> createAnonymous(
             HttpServletRequest request,
             @RequestHeader(value = "User-Agent", defaultValue = "UNKNOWN") String userAgent,
@@ -118,12 +118,20 @@ public class SessionController {
             String ip = extractIp(request);
             Session session = service.createAnonymous(ip, userAgent);
 
-            log.debug("[CONTROLLER - ANONYMOUS] Encriptando dados com a chave DH temporária.");
-            Map<String, String> encryptedResponse = responseQueries.sanitizeAndEncrypt(session, sharedSecret);
+            // =========================================================================
+            // PASSO 1: Captura dos novos escopos e apólice de congelamento
+            // =========================================================================
+            Map<String, Object> upgradeData = service.handleAnonymousUpgrade(anonymousToken);
+
+            log.debug("[CONTROLLER - ANONYMOUS] Encriptando dados e escopos com a chave DH temporária.");
+
+            // Enviando os 3 parâmetros diretamente: a sessão, os escopos extras e o segredo AES-256
+            Map<String, String> encryptedResponse = responseQueries.sanitizeAndEncrypt(session, upgradeData, sharedSecret);
+ 
 
             ResponseCookie sessionCookie = service.generateSessionCookie(encryptedResponse.get("ciphertext"));
 
-            log.info("[CONTROLLER - ANONYMOUS] Sessão criada. ID: {}", session.getId());
+            log.info("[CONTROLLER - ANONYMOUS] Sessão criada com apólice embutida. ID: {}", session.getId());
             return ResponseEntity.ok()
                     .header(HttpHeaders.SET_COOKIE, sessionCookie.toString())
                     .body(encryptedResponse);
@@ -139,6 +147,7 @@ public class SessionController {
             }
         }
     }
+
 
     // =========================================================================
     // MANUTENÇÃO DE SESSÃO (REFRESH)

@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
-import { Session, SessionTag, PrismoSessionState, DiffieHellmanModel, DHResult } from '../models/session.model';
+import { Session, SessionTag, PrismoSessionState, DiffieHellmanModel, DHResult, SessionPermition } from '../models/session.model';
 
 @Injectable({ providedIn: 'root' })
 export class SessionContext {
@@ -61,6 +61,7 @@ export class SessionContext {
 
   /**
    * ESTEIRA: Finalização (Sempre define como REST para liberar APIs)
+   * A entidade 'Session' injetada aqui já carrega a propriedade 'permition' opcional.
    */
   setSession(session: Session): void {
     const current = this._state.getValue();
@@ -70,6 +71,26 @@ export class SessionContext {
       tag: SessionTag.REST, // Selo de Estabilidade
       is_ready: true,
       is_loading: false
+    });
+  }
+
+  /**
+   * SEGURANÇA: Atualiza cirurgicamente apenas a gaveta de permissões/freezer
+   * sem violar ou reescrever as propriedades de identificação da sessão.
+   */
+  updatePermitions(permition: SessionPermition): void {
+    const current = this._state.getValue();
+    if (!current.data) return;
+
+    this._state.next({
+      ...current,
+      data: {
+        ...current.data,
+        permition: {
+          ...current.data.permition,
+          ...permition // Mescla os novos objetos rwu, navigation ou travas temporárias
+        }
+      }
     });
   }
 
@@ -105,6 +126,14 @@ export class SessionContext {
   }
 
   get currentState(): PrismoSessionState { return this._state.getValue(); }
+
+  /**
+   * ATALHO: Expõe de forma limpa as permissões ativas para Route Guards e interceptors
+   */
+  get currentPermitions(): SessionPermition | null {
+    return this._state.getValue().data?.permition || null;
+  }
 }
+
 
 

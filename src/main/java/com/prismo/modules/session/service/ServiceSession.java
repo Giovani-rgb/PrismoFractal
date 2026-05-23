@@ -123,6 +123,30 @@ public class ServiceSession {
         return savedSession;
     }
 
+        // =========================================================================
+    // ETAPA 3: ROTA "/anonymous" (Consolidação e Congelamento de Fluxo)
+    // =========================================================================
+    /**
+     * FASE 3: ROTA /anonymous (Upgrade para o Contexto de Freezer)
+     * <p>
+     * Acionado dentro do escopo da rota anônima para finalizar a transição de estado.
+     * Invoca o CryptoHelper para destruir o token temporário e envelopar a apólice
+     * de segurança contendo as permissões de navegação, escopo rwu e interações.
+     *
+     * @param anonymousToken O token de passagem atual que será invalidado e promovido.
+     * @return O payload completo com os objetos de permissão exigidos pelo front.
+     */
+    public Map<String, Object> handleAnonymousUpgrade(String anonymousToken) {
+        log.info("[SERVICE SESSION - FASE 3] Processando upgrade de contexto da rota /anonymous para Freezer.");
+        
+        // Invoca o orquestrador para gerar a apólice de permissões (rwu, navigation, interactions)
+        Map<String, Object> permissionPayload = cryptoHelper.upgradeToFreezerContext(anonymousToken);
+        
+        log.info("[SERVICE SESSION - FASE 3] Permissão de navegação (rwu) consolidada com sucesso.");
+        return permissionPayload;
+    }
+
+
     /**
      * READ: Recupera uma sessão existente.
      * Utilizado para validações posteriores no ciclo de vida do cliente.

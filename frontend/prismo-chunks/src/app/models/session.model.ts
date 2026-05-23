@@ -10,6 +10,13 @@ export enum SessionTag {
 }
 
 /**
+ * Objetos de controle que não pertencem ao escopo direto da entidade Session
+ */
+export interface SessionPermition {
+  [key: string]: any; // Engole rwu, navigation, interactions, etc. um nível abaixo
+}
+
+/**
  * O objeto Session original (vinda do Backend/Worker)
  */
 export interface Session {
@@ -22,6 +29,7 @@ export interface Session {
   expiresAt: number;
   lastAccessAt: number;
   token?: string;
+  permition?: SessionPermition; // Nova gaveta de segurança
 }
 
 /**

@@ -25,18 +25,21 @@ public class ResponseQueries {
     private final SecureRandom secureRandom = new SecureRandom();
 
     /**
-     * Sanitiza e criptografa os dados da sessão.
-     *
-     * A chave AES é derivada via SHA-256 do secretHex (hex string do DH shared secret),
-     * garantindo sempre exatamente 32 bytes — alinhado com o frontend:
-     *   deriveKey(secret) = SHA-256(UTF-8(secret)) → importKey('raw', hash, 'AES-GCM')
-     *
-     * Retorna {iv, ciphertext} em Base64, prontos para o EncryptedPayload do Angular.
+     * Sobrecarga legada para manter compatibilidade onde apenas a sessão básica é enviada.
      */
     public Map<String, String> sanitizeAndEncrypt(Session session, String secretHex) {
-        try {
-            log.info("[RESPONSE QUERIES] Sanitizando dados para cifragem. Sessão: {}", session.getId());
+        return sanitizeAndEncrypt(session, null, secretHex);
+    }
 
+    /**
+     * Sanitiza os dados da sessão e acopla escopos dinâmicos de segurança (ex: rwu, navigation, freezer)
+     * antes de cifrar tudo em um único bloco AES-256-GCM.
+     */
+    public Map<String, String> sanitizeAndEncrypt(Session session, Map<String, Object> extraData, String secretHex) {
+        try {
+            log.info("[RESPONSE QUERIES] Sanitizando dados e escopos para cifragem. Sessão: {}", session.getId());
+
+            // 1. Monta o payload higienizado da sessão padrão
             Map<String, Object> data = new HashMap<>();
             data.put("id_prospect", session.getId());
             data.put("refs",        session.getUserId());
@@ -47,9 +50,16 @@ public class ResponseQueries {
             data.put("expiresAt",   session.getExpiresAt());
             data.put("lastAccessAt",session.getLastAccessAt());
 
+            // 2. Injeta os novos escopos na raiz do objeto se eles existirem
+            if (extraData != null && !extraData.isEmpty()) {
+                log.debug("[RESPONSE QUERIES] Acoplando {} chaves extras de segurança ao payload.", extraData.size());
+                data.putAll(extraData);
+            }
+
+            // Converte o mapa consolidado em String JSON
             String jsonPayload = mapper.writeValueAsString(data);
 
-            // Deriva chave AES-256 via SHA-256 da string hex (igual ao crypto.subtle no frontend)
+            // Deriva chave AES-256 via SHA-256 da string hex (32 bytes cravados)
             byte[] keyBytes = MessageDigest.getInstance("SHA-256")
                     .digest(secretHex.getBytes(StandardCharsets.UTF_8));
             SecretKeySpec keySpec = new SecretKeySpec(keyBytes, "AES");
@@ -65,11 +75,11 @@ public class ResponseQueries {
             response.put("iv",         Base64.getEncoder().encodeToString(iv));
             response.put("ciphertext", Base64.getEncoder().encodeToString(ciphertext));
 
-            log.info("[RESPONSE QUERIES] Payload cifrado com sucesso. Pronto para o Web Worker.");
+            log.info("[RESPONSE QUERIES] Payload robusto cifrado com sucesso para o Web Worker.");
             return response;
 
         } catch (Exception e) {
-            log.error("[RESPONSE QUERIES] Falha ao cifrar resposta.", e);
+            log.error("[RESPONSE QUERIES] Falha ao cifrar resposta combinada.", e);
             throw new RuntimeException("Erro ao processar e criptografar resposta da sessão", e);
         }
     }

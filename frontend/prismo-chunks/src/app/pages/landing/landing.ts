@@ -1,14 +1,15 @@
-import { Component, ElementRef, ViewChild, AfterViewInit, HostListener } from '@angular/core';
+import { Component, ElementRef, ViewChild, AfterViewInit, OnDestroy, HostListener } from '@angular/core';
 import { Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 
-interface BackgroundStar {
+interface Star {
   x: number;
   y: number;
   vx: number;
   vy: number;
   radius: number;
   opacity: number;
+  color: string;
 }
 
 @Component({
@@ -18,165 +19,181 @@ interface BackgroundStar {
   templateUrl: './landing.html',
   styleUrl: './landing.scss',
 })
-export class Landing implements AfterViewInit {
+export class Landing implements AfterViewInit, OnDestroy {
   @ViewChild('landingCanvas') canvasRef!: ElementRef<HTMLCanvasElement>;
   private ctx!: CanvasRenderingContext2D;
-  
-  // Gerenciamento do fundo animado
-  private stars: BackgroundStar[] = [];
-  private readonly MAX_STARS = 150; 
+  private stars: Star[] = [];
+  private rafId!: number;
+  private titleOpacity = 0;
+  private readonly MAX_STARS = 180;
 
   constructor(private router: Router) {}
 
   ngAfterViewInit() {
     this.ctx = this.canvasRef.nativeElement.getContext('2d', { alpha: false })!;
     this.resizeCanvas();
-    this.initStars(true); // Inicializa preenchendo a tela inteira
+    this.initStars(true);
     this.animate();
+  }
+
+  ngOnDestroy() {
+    cancelAnimationFrame(this.rafId);
   }
 
   @HostListener('window:resize')
   resizeCanvas() {
-    this.canvasRef.nativeElement.width = window.innerWidth;
-    this.canvasRef.nativeElement.height = window.innerHeight;
+    const c = this.canvasRef.nativeElement;
+    c.width  = window.innerWidth;
+    c.height = window.innerHeight;
   }
 
-  /**
-   * Inicializa ou regenera o array de estrelas em posições aleatórias
-   */
-  private initStars(scatter: boolean) {
-    this.stars = [];
-    for (let i = 0; i < this.MAX_STARS; i++) {
-      this.stars.push(this.createStar(scatter));
-    }
+  private starColor(): string {
+    const r = Math.random();
+    if (r < 0.12) return '#00e5ff';  // cyan
+    if (r < 0.17) return '#ff0055';  // red accent (rare)
+    if (r < 0.22) return '#ffe600';  // yellow accent (rare)
+    return '#ffffff';                 // white
   }
 
-  /**
-   * Cria uma estrela com vetor de movimento baseado em ângulo para simular a explosão para fora
-   */
-  private createStar(scatter = false): BackgroundStar {
+  private createStar(scatter = false): Star {
     const angle = Math.random() * Math.PI * 2;
-    const speed = Math.random() * 2.5 + 0.5; // Velocidade de dispersão
-    
-    // Se 'scatter' for true, espalha pela tela (evita que o app comece sem estrelas nas bordas)
-    // Se falso, a estrela "nasce" bem perto do centro do fluxo
+    const speed = Math.random() * 2.2 + 0.4;
     const maxDist = Math.max(window.innerWidth, window.innerHeight);
-    const dist = scatter ? Math.random() * maxDist : Math.random() * 15;
+    const dist = scatter ? Math.random() * maxDist : Math.random() * 10;
 
     return {
-      x: Math.cos(angle) * dist,
-      y: Math.sin(angle) * dist,
-      vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed,
-      radius: Math.random() * 1.2 + 0.4,
-      opacity: scatter ? Math.random() : 0 // Fade-in para as novas estrelas que surgem
+      x:       Math.cos(angle) * dist,
+      y:       Math.sin(angle) * dist,
+      vx:      Math.cos(angle) * speed,
+      vy:      Math.sin(angle) * speed,
+      radius:  Math.random() * 1.1 + 0.3,
+      opacity: scatter ? Math.random() : 0,
+      color:   this.starColor(),
     };
   }
 
-  /**
-   * Desenha estrelas de 5 pontas de destaque (estáticas/hero)
-   */
-  private drawStar(x: number, y: number, radius: number, opacity: number) {
-    const points = 5;
-    const inset = 0.5; 
+  private initStars(scatter: boolean) {
+    this.stars = Array.from({ length: this.MAX_STARS }, () => this.createStar(scatter));
+  }
 
+  private drawAccentStar(x: number, y: number, radius: number, opacity: number, color: string) {
+    const pts = 5;
     this.ctx.save();
     this.ctx.beginPath();
     this.ctx.translate(x, y);
-    this.ctx.moveTo(0, 0 - radius);
-
-    for (let i = 0; i < points; i++) {
-      this.ctx.rotate(Math.PI / points);
-      this.ctx.lineTo(0, 0 - (radius * inset));
-      this.ctx.rotate(Math.PI / points);
-      this.ctx.lineTo(0, 0 - radius);
+    this.ctx.moveTo(0, -radius);
+    for (let i = 0; i < pts; i++) {
+      this.ctx.rotate(Math.PI / pts);
+      this.ctx.lineTo(0, -(radius * 0.45));
+      this.ctx.rotate(Math.PI / pts);
+      this.ctx.lineTo(0, -radius);
     }
-
     this.ctx.closePath();
-    this.ctx.fillStyle = `rgba(0, 229, 255, ${opacity})`;
-    this.ctx.shadowBlur = 10;
-    this.ctx.shadowColor = '#00e5ff';
+    this.ctx.fillStyle = `${color}${Math.round(opacity * 255).toString(16).padStart(2, '0')}`;
+    this.ctx.shadowBlur = 14;
+    this.ctx.shadowColor = color;
     this.ctx.fill();
     this.ctx.restore();
   }
 
   private animate() {
-    const w = this.canvasRef.nativeElement.width;
-    const h = this.canvasRef.nativeElement.height;
+    const c  = this.canvasRef.nativeElement;
+    const w  = c.width;
+    const h  = c.height;
+    const cx = w / 2;
+    const cy = h * 0.30; // Title sits at top 30% of screen
 
-    const centerX = w / 2;
-    const centerY = (h * (2 / 3)) / 2;
-
-    // Fundo Preto Absoluto 
-    this.ctx.fillStyle = '#000000';
+    // Background
+    this.ctx.fillStyle = '#000';
     this.ctx.fillRect(0, 0, w, h);
 
-    // --- 1. RENDERIZAR FUNDO ANIMADO (STARFIELD) ---
-    this.stars.forEach(star => {
-      // Move a estrela para fora baseado em sua velocidade direcional
-      star.x += star.vx;
-      star.y += star.vy;
+    // Subtle radial glow behind title
+    const grd = this.ctx.createRadialGradient(cx, cy, 0, cx, cy, w * 0.45);
+    grd.addColorStop(0,   'rgba(0,229,255,0.045)');
+    grd.addColorStop(0.5, 'rgba(0,229,255,0.018)');
+    grd.addColorStop(1,   'transparent');
+    this.ctx.fillStyle = grd;
+    this.ctx.fillRect(0, 0, w, h);
 
-      // Suaviza o surgimento (fade-in) para não brotar do nada no centro
-      if (star.opacity < 1) {
-        star.opacity += 0.02;
-      }
+    // Starfield
+    this.stars.forEach(s => {
+      s.x += s.vx;
+      s.y += s.vy;
+      if (s.opacity < 1) s.opacity += 0.018;
 
-      const screenX = centerX + star.x;
-      const screenY = centerY + star.y;
+      const sx = cx + s.x;
+      const sy = cy + s.y;
 
-      // Se a estrela cruzar a borda da tela, ela "morre" e renasce no centro
-      if (screenX < 0 || screenX > w || screenY < 0 || screenY > h) {
-        Object.assign(star, this.createStar(false));
+      if (sx < -5 || sx > w + 5 || sy < -5 || sy > h + 5) {
+        Object.assign(s, this.createStar(false));
       } else {
-        this.ctx.fillStyle = `rgba(0, 229, 255, ${star.opacity})`;
+        this.ctx.globalAlpha = Math.min(s.opacity, 1);
+        this.ctx.fillStyle = s.color;
+        this.ctx.shadowBlur = s.color === '#ffffff' ? 0 : 6;
+        this.ctx.shadowColor = s.color;
         this.ctx.beginPath();
-        this.ctx.arc(screenX, screenY, star.radius, 0, Math.PI * 2);
+        this.ctx.arc(sx, sy, s.radius, 0, Math.PI * 2);
         this.ctx.fill();
       }
     });
 
-    // --- 2. ESTRELAS FIXAS DE DESTAQUE ---
-    this.drawStar(centerX - 210, centerY - 70, 10, 0.8);
-    this.drawStar(centerX + 220, centerY + 25, 14, 0.6);
-    this.drawStar(centerX + 25, centerY - 120, 7, 0.8);
+    this.ctx.globalAlpha = 1;
+    this.ctx.shadowBlur  = 0;
 
-    // --- 3. LETRAS COM EXTRUSÃO 3D ---
+    // Accent stars
+    this.drawAccentStar(cx - 195, cy - 65, 11, 0.75, '#00e5ff');
+    this.drawAccentStar(cx + 210, cy + 22,  15, 0.55, '#00e5ff');
+    this.drawAccentStar(cx + 22,  cy - 110, 7,  0.80, '#ffe600');
+    this.drawAccentStar(cx - 80,  cy + 95,  6,  0.45, '#ff0055');
+
+    // Fade-in title on startup
+    if (this.titleOpacity < 1) this.titleOpacity += 0.016;
+
+    // PRISMO — responsive font size
+    const mobile = w < 480;
+    const tablet = w < 768;
     const chars = [
-      { t: 'P', s: 62, x: -130 },
-      { t: 'R', s: 52, x: -75  },
-      { t: 'I', s: 62, x: -30  },
-      { t: 'S', s: 52, x: 15    },
-      { t: 'M', s: 58, x: 65   },
-      { t: 'O', s: 68, x: 125  }
+      { t: 'P', s: mobile ? 38 : tablet ? 52 : 62, x: mobile ? -78  : -130 },
+      { t: 'R', s: mobile ? 32 : tablet ? 44 : 52, x: mobile ? -47  : -75  },
+      { t: 'I', s: mobile ? 38 : tablet ? 52 : 62, x: mobile ? -18  : -30  },
+      { t: 'S', s: mobile ? 32 : tablet ? 44 : 52, x: mobile ?   9  :  15  },
+      { t: 'M', s: mobile ? 36 : tablet ? 50 : 58, x: mobile ?  38  :  65  },
+      { t: 'O', s: mobile ? 42 : tablet ? 56 : 68, x: mobile ?  74  : 125  },
     ];
 
-    this.ctx.textAlign = 'center';
+    this.ctx.textAlign    = 'center';
     this.ctx.textBaseline = 'middle';
-    this.ctx.shadowBlur = 0; // Reset do efeito blur para o texto ficar nítido
+    this.ctx.shadowBlur   = 0;
 
     chars.forEach(c => {
-      this.ctx.font = `bold ${c.s}px 'Press Start 2P'`;
-
+      this.ctx.font = `bold ${c.s}px 'Press Start 2P', monospace`;
       for (let i = 7; i > 0; i--) {
-        this.ctx.fillStyle = i === 1 ? '#ffffff' : i > 4 ? '#00e5ff' : '#ff0055';
-        this.ctx.fillText(c.t, centerX + c.x - i, centerY + i); 
+        const col = i === 1 ? '#ffffff' : i > 4 ? '#00e5ff' : '#ff0055';
+        this.ctx.globalAlpha = (i === 1 ? 1 : 0.85) * this.titleOpacity;
+        this.ctx.fillText(c.t, cx + c.x - i, cy + i);
       }
     });
 
-    // --- 4. LINHA DE BASE TÉCNICA (Ajustada para 340px) ---
+    this.ctx.globalAlpha = this.titleOpacity;
+
+    // Baseline
+    const lineW = mobile ? 100 : tablet ? 150 : 175;
     this.ctx.strokeStyle = '#00e5ff';
-    this.ctx.lineWidth = 2.5;
+    this.ctx.lineWidth   = mobile ? 1.5 : 2.5;
+    this.ctx.shadowBlur  = 8;
+    this.ctx.shadowColor = '#00e5ff';
     this.ctx.beginPath();
-    // De -170 a +170 em relação ao centro garante o tamanho exato de 340px
-    this.ctx.moveTo(centerX - 170, centerY + 75);
-    this.ctx.lineTo(centerX + 170, centerY + 75);
+    this.ctx.moveTo(cx - lineW, cy + (mobile ? 50 : 68));
+    this.ctx.lineTo(cx + lineW, cy + (mobile ? 50 : 68));
     this.ctx.stroke();
 
-    requestAnimationFrame(() => this.animate());
+    this.ctx.globalAlpha = 1;
+    this.ctx.shadowBlur  = 0;
+
+    this.rafId = requestAnimationFrame(() => this.animate());
   }
 
   login(provider: string) {
-    this.router.navigate(['/dashboard']); 
+    this.router.navigate(['/dashboard']);
   }
 }

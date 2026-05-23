@@ -1,167 +1,405 @@
-@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+// ─── Tokens ───────────────────────────────────────────────
+$cyan:   #00e5ff;
+$red:    #ff0055;
+$white:  #ffffff;
+$black:  #000000;
+$font:   'Press Start 2P', cursive;
 
-// Variáveis
-$primary-cyan: #00e5ff;
-$font-game: 'Press Start 2P', cursive;
-$font-mono: 'Courier New', monospace;
+// ─── Keyframes ────────────────────────────────────────────
+@keyframes spin-vinyl {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0)   rotate(0deg); }
+  40%       { transform: translateY(-7px) rotate(2deg); }
+  70%       { transform: translateY(4px)  rotate(-1deg); }
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 0 8px  rgba(0,229,255,.25), 0 0 20px rgba(0,229,255,.08); }
+  50%       { box-shadow: 0 0 20px rgba(0,229,255,.55), 0 0 50px rgba(0,229,255,.18); }
+}
+
+@keyframes shimmer {
+  from { background-position: -200% center; }
+  to   { background-position:  200% center; }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+
+@keyframes borderGlow {
+  0%, 100% { border-color: rgba(0,229,255,.15); }
+  50%       { border-color: rgba(0,229,255,.45); }
+}
+
+// ─── Base ─────────────────────────────────────────────────
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 .landing-wrapper {
-  width: 100vw;
-  height: 92vh;
-  overflow: hidden;
-  background: #000;
   position: relative;
+  width: 100vw;
+  height: 100dvh;
+  overflow: hidden;
+  background: $black;
+  font-family: $font;
 }
 
 canvas {
   position: absolute;
-  border: solid 1px #f0f;
-  top: 0;
-  left: 0;
+  inset: 0;
   width: 100%;
-  height: 55%;
+  height: 100%;
   z-index: 1;
-  display: block; // Remove espaços vazios de renderização
-  pointer-events: none; // Permite clicar no que estiver atrás (se precisar)
+  pointer-events: none;
 }
+
+.scanlines {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent         0px,
+    transparent         2px,
+    rgba(0,0,0,.09)     2px,
+    rgba(0,0,0,.09)     4px
+  );
+}
+
+// ─── Content overlay ──────────────────────────────────────
 .content-overlay {
   position: relative;
-  z-index: 5;
+  z-index: 10;
   height: 100%;
   display: flex;
   flex-direction: column;
+  justify-content: flex-end;
+  padding-bottom: calc(65px + env(safe-area-inset-bottom));
 }
 
-.logo-zone {
-  flex: 2;
-}
-
-.auth-zone {
-  flex: 1;
+// ─── Hero row ─────────────────────────────────────────────
+.hero {
   display: flex;
-  justify-content: center;
-  higth: 45%;
   align-items: center;
-  padding-bottom: 70px;
+  gap: 16px;
+  padding: 0 20px 14px;
+  animation: fadeUp .55s ease .1s both;
+
+  @media (min-width: 480px) { padding: 0 28px 18px; gap: 22px; }
+  @media (min-width: 768px) { padding: 0 40px 22px; gap: 30px; }
 }
 
-/* --- VINIL FÍSICO --- */
-.physical-vinyl {
+// Vinyl disc
+.vinyl-wrap {
+  flex-shrink: 0;
+  animation: float 5.5s ease-in-out infinite;
+}
+
+.vinyl-disc {
   position: relative;
-  padding-top: 10px;
-  width: 280px;
-  height: 280px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  width: 82px;
+  height: 82px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 28%, #1c1c1c 0%, #060606 55%, #000 100%);
+  border: 2px solid #1e1e1e;
+  box-shadow:
+    0 0 0 1px #2a2a2a,
+    0 10px 40px rgba(0,0,0,.85),
+    inset 0 0 20px rgba(0,0,0,.6);
+  animation: spin-vinyl 7s linear infinite;
 
-  .vinyl-disc-object {
+  @media (min-width: 480px) { width: 96px;  height: 96px; }
+  @media (min-width: 768px) { width: 112px; height: 112px; }
+}
+
+.vinyl-grooves {
+  position: absolute;
+  inset: 7px;
+  border-radius: 50%;
+  background: repeating-radial-gradient(
+    circle,
+    transparent 0,
+    transparent 3px,
+    rgba(255,255,255,.022) 3px,
+    rgba(255,255,255,.022) 4px
+  );
+}
+
+.vinyl-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #1af3ff 0%, #00aacc 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 18px rgba(0,229,255,.65);
+  animation: glowPulse 2.4s ease-in-out infinite;
+
+  span {
+    font-size: 9px;
+    color: $black;
+    font-weight: bold;
+    line-height: 1;
+  }
+
+  @media (min-width: 480px) { width: 36px; height: 36px; span { font-size: 11px; } }
+  @media (min-width: 768px) { width: 42px; height: 42px; span { font-size: 13px; } }
+}
+
+.vinyl-shine {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    transparent           0%,
+    rgba(255,255,255,.05) 25%,
+    transparent           50%,
+    rgba(255,255,255,.05) 75%,
+    transparent           100%
+  );
+}
+
+// Hero text
+.hero-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.hero-eyebrow {
+  font-size: 7px;
+  color: rgba($cyan, .45);
+  margin-bottom: 8px;
+  letter-spacing: .5px;
+  animation: blink 1.5s step-end infinite;
+
+  @media (min-width: 768px) { font-size: 8px; }
+}
+
+.hero-tagline {
+  font-size: 9px;
+  color: rgba($white, .72);
+  line-height: 2;
+  letter-spacing: .5px;
+
+  @media (min-width: 480px) { font-size: 10px; }
+  @media (min-width: 768px) { font-size: 12px; }
+}
+
+// ─── Feature pills ────────────────────────────────────────
+.feature-strip {
+  display: flex;
+  gap: 8px;
+  padding: 0 20px 14px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  animation: fadeUp .55s ease .22s both;
+
+  &::-webkit-scrollbar { display: none; }
+
+  @media (min-width: 480px) { padding: 0 28px 18px; }
+  @media (min-width: 768px) { padding: 0 40px 20px; gap: 12px; }
+}
+
+.feature-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border: 1px solid rgba($cyan, .18);
+  background: rgba($cyan, .04);
+  color: rgba($white, .45);
+  font-size: 7px;
+  white-space: nowrap;
+  cursor: default;
+  letter-spacing: .3px;
+  transition: all .2s;
+  animation: borderGlow 3.5s ease-in-out infinite;
+
+  &:hover {
+    border-color: rgba($cyan, .5);
+    background: rgba($cyan, .09);
+    color: $cyan;
+  }
+
+  .pill-icon { font-size: 13px; }
+
+  @media (min-width: 768px) { font-size: 8px; padding: 8px 16px; }
+}
+
+// ─── Auth section ─────────────────────────────────────────
+.auth-section {
+  padding: 0 20px 10px;
+  animation: fadeUp .55s ease .36s both;
+
+  @media (min-width: 480px) { padding: 0 28px 12px; }
+  @media (min-width: 768px) { padding: 0 40px 14px; max-width: 520px; }
+}
+
+.auth-label {
+  font-size: 7px;
+  color: rgba($white, .22);
+  text-align: center;
+  margin-bottom: 12px;
+  letter-spacing: 2px;
+
+  @media (min-width: 768px) { font-size: 8px; }
+}
+
+.auth-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin-bottom: 10px;
+}
+
+.btn-login {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 13px 16px;
+  border: 1px solid rgba($white, .10);
+  background: rgba($white, .035);
+  color: $white;
+  font-family: $font;
+  font-size: 7px;
+  cursor: pointer;
+  text-align: left;
+  letter-spacing: .4px;
+  transition: border-color .18s, background .18s, transform .12s;
+  backdrop-filter: blur(10px);
+  position: relative;
+  overflow: hidden;
+
+  // Shimmer layer
+  &::after {
+    content: '';
     position: absolute;
     inset: 0;
-    border-radius: 50%;
-    background: radial-gradient(circle, #222 0%, #050505 100%);
-    border: 4px solid #111;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.9);
-    animation: spin-vinyl 8s linear infinite;
+    background: linear-gradient(
+      105deg,
+      transparent    30%,
+      rgba(255,255,255,.06) 50%,
+      transparent    70%
+    );
+    background-size: 200% 100%;
+    opacity: 0;
+    transition: opacity .15s;
+  }
+
+  &:hover {
+    border-color: rgba($cyan, .38);
+    background:   rgba($cyan, .06);
+    transform: translateX(3px);
 
     &::after {
-      content: "";
-      position: absolute;
-      inset: 8px;
-      border-radius: 50%;
-      background: repeating-radial-gradient(circle, transparent 0, transparent 2px, rgba(255,255,255,0.03) 3px);
+      opacity: 1;
+      animation: shimmer .7s ease forwards;
     }
+
+    .btn-arrow { color: $cyan; }
   }
 
-  .shine-effect {
-    position: absolute;
-    inset: 0;
-    border-radius: 50%;
-    background: conic-gradient(from 0deg, transparent 0%, rgba(255,255,255,0.04) 25%, transparent 50%, rgba(255,255,255,0.04) 75%, transparent 100%);
-    z-index: 2;
-  }
+  &:active { transform: translateX(1px); }
 
-  .static-label {
-    position: absolute;
-    width: 130px;
-    height: 130px;
-    background: #fff;
-    border-radius: 50%;
-    z-index: 10;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: inset 0 0 15px rgba(0,0,0,0.3);
-    
-    .label-inner {
-      width: 100%;
-      display: flex;
-      flex-direction: column;
-      gap: 5px;
-      padding: 15px;
-
-      .btn-auth {
-        background: #000;
-        color: #fff;
-        border: 1px solid #000;
-        padding: 6px;
-        font-family: $font-mono;
-        font-size: 8px;
-        font-weight: bold;
-        cursor: pointer;
-        transition: 0.2s;
-
-        &:hover {
-          background: $primary-cyan;
-          color: #000;
-        }
-      }
-    }
-  }
+  @media (min-width: 480px) { font-size: 8px; padding: 14px 18px; }
+  @media (min-width: 768px) { font-size: 9px; padding: 16px 20px; }
 }
 
-/* --- BOTTOM BAR --- */
-// A barra agora é uma "âncora" inabalável
-.bottom-bar-fixed {
-  position: fixed; // Muda de absolute para fixed
+.btn-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-family: Arial, sans-serif;
+  font-weight: bold;
+  font-size: 13px;
+
+  @media (min-width: 768px) { width: 32px; height: 32px; }
+}
+
+.google-icon { background: linear-gradient(135deg, #4285F4 0%, #34A853 100%); color: $white; }
+.fb-icon     { background: #1877F2; color: $white; }
+
+.btn-text  { flex: 1; }
+.btn-arrow {
+  font-family: monospace;
+  font-size: 20px;
+  line-height: 1;
+  color: rgba($white, .25);
+  transition: color .15s;
+}
+
+.auth-fine {
+  font-size: 6px;
+  color: rgba($white, .18);
+  text-align: center;
+  line-height: 2.2;
+  letter-spacing: .2px;
+
+  @media (min-width: 768px) { font-size: 7px; }
+}
+
+// ─── Bottom nav ───────────────────────────────────────────
+.bottom-bar {
+  position: fixed;
   bottom: 0;
-  left: 0;         // Garante que comece no canto esquerdo
+  left: 0;
   width: 100%;
   height: 65px;
-  background: rgba(5, 5, 5, 0.95); // Mais escuro para contraste
-  border-top: 1px solid #333;
+  background: rgba(3, 3, 3, .97);
+  border-top: 1px solid #161616;
   display: flex;
   justify-content: space-around;
   align-items: center;
-  z-index: 999;    // Valor bem alto para ficar acima de TUDO (Canvas e Overlay)
-  backdrop-filter: blur(10px);
-  padding-bottom: env(safe-area-inset-bottom); // Suporte para iPhones novos
-  .nav-item {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    color: rgba(255,255,255,0.4);
-    cursor: pointer;
-    
-    .icon { font-size: 18px; margin-bottom: 2px; }
-    .label { font-size: 7px; font-weight: bold; letter-spacing: 1px; }
-
-    &.active {
-      color: #fff;
-      .icon-main { 
-        font-size: 24px; 
-        color: $primary-cyan;
-        filter: drop-shadow(0 0 8px $primary-cyan);
-      }
-      .label { color: $primary-cyan; }
-    }
-  }
-
-  
+  z-index: 999;
+  backdrop-filter: blur(18px);
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: rgba($white, .28);
+  cursor: pointer;
+  padding: 4px 8px;
+  transition: color .15s;
 
-@keyframes spin-vinyl { 
-  from { transform: rotate(0deg); } 
-  to { transform: rotate(360deg); } 
+  .nav-icon      { font-size: 17px; }
+  .nav-icon-main { font-size: 17px; }
+  .nav-label     { font-size: 6px; letter-spacing: 1px; }
+
+  &:hover { color: rgba($white, .55); }
+
+  &.active {
+    color: $cyan;
+
+    .nav-icon-main {
+      font-size: 22px;
+      filter: drop-shadow(0 0 7px $cyan);
+    }
+
+    .nav-label { color: $cyan; }
+  }
 }
