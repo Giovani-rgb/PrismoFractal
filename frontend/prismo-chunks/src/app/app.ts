@@ -6,6 +6,8 @@ import { SessionRehydrationExecution } from './crowdedExecultion/sessionRehydrat
 import { SessionContext } from './context/session.context';
 import { SessionTag } from './models/session.model';
 import { environment } from '../environments/environment';
+// Importe o serviço que funcionará como sua camada persistente privada
+import { SessionCacheService } from './private/session-cache.service'; 
 
 @Component({
   selector: 'app-root',
@@ -19,6 +21,7 @@ export class App implements OnInit {
   private creationExecution = inject(SessionCreationExecution);
   private rehydrationExecution = inject(SessionRehydrationExecution);
   private context = inject(SessionContext);
+  private cacheService = inject(SessionCacheService); // Injeção do Cache Persistente
   private router = inject(Router);
   private titleService = inject(Title);
 
@@ -51,26 +54,19 @@ export class App implements OnInit {
     }
   }
 
-  /**
-   * FLUXO 1: CRIAÇÃO (POST)
-   * Orquestra a esteira de ingestão de nova sessão.
-   */
   private async runCreationFlow(): Promise<void> {
     try {
       await this.creationExecution.execute();
       this.finalizeFlow();
     } catch (err) {
       console.error('[App] ❌ Falha crítica na rota de criação:', err);
-      // Aqui o Prismo poderia redirecionar para uma página de erro global
     }
   }
 
-  /**
-   * FLUXO 2: REIDRATAÇÃO (CACHE)
-   * Orquestra a recuperação de integridade local via Worker.
-   */
   private async runRehydrationFlow(): Promise<void> {
     try {
+      // O seu SessionRehydrationExecution poderá injetar o SessionCacheService
+      // para capturar o sharedSecret salvo e descriptografar o payload do sessionStorage
       await this.rehydrationExecution.execute();
       this.finalizeFlow();
     } catch (err) {
@@ -79,25 +75,13 @@ export class App implements OnInit {
     }
   }
 
-  /**
-   * FINALIZAÇÃO DETERMINÍSTICA
-   * Valida se a esteira entregou o selo REST ou se estamos operando OFFLINE.
-   */
-  /**
-   * FINALIZAÇÃO DETERMINÍSTICA
-   * Valida se a esteira entregou o selo REST ou se estamos operando OFFLINE.
-   */
   private finalizeFlow(): void {
     const state = this.context.currentState;
 
-    // Se o estado for REST ou OFFLINE (com dados), a aplicação pode seguir
     if (state.data && (state.tag === SessionTag.REST || state.tag === SessionTag.OFFLINE)) {
-
-      // LOG DE AUDITORIA DO CONTEXTO (Pós-Rest)
       console.log(`%c[App] ✨ Estado de Repouso Alcançado: ${state.tag}`, 'color: #6366f1; font-weight: bold;');
-      console.dir(state); // Mostra o objeto PrismoSessionState completo no console
+      console.dir(state);
 
-      // Feedback visual de PWA para 340px
       if (state.use_pwa_styles) {
         console.log('%c[App] 📱 PWA Mode: Active Styles Enabled.', 'color: #ec4899');
       }
@@ -115,13 +99,20 @@ export class App implements OnInit {
     }
   }
 
+  /**
+   * BANNER EXPANDIDO (VERSÃO PREMIUM / HIGH-IMPACT)
+   */
   private printPrismoBanner(): void {
-    const label = ' PRISMO ';
-    const engine = ' ENGINE ';
-    const styleLabel = 'background: #6366f1; color: white; font-weight: bold; border-radius: 3px 0 0 3px; padding: 2px 5px;';
-    const styleEngine = 'background: #312e81; color: #a5b4fc; font-weight: normal; border-radius: 0 3px 3px 0; padding: 2px 5px;';
-
+    const label = '  PRISMO  ';
+    const engine = '  ENGINE  ';
+    
+    // Estilos com fontes maiores, paddings generosos e linha demarcadora
+    const styleLabel = 'background: #6366f1; color: white; font-weight: bold; font-size: 16px; border-radius: 4px 0 0 4px; padding: 6px 12px; font-family: monospace;';
+    const styleEngine = 'background: #312e81; color: #a5b4fc; font-weight: bold; font-size: 16px; border-radius: 0 4px 4px 0; padding: 6px 12px; font-family: monospace;';
+    
+    console.log('\n'); // Espaçamento superior
     console.log(`%c${label}%c${engine}`, styleLabel, styleEngine);
-    console.log('%cInitializing deterministic pipeline...', 'color: #888; font-size: 10px; font-style: italic;');
+    console.log('%c  » Deterministic Pipeline Execution Activated «  ', 'color: #818cf8; font-size: 11px; font-weight: 500; letter-spacing: 1px; padding-top: 5px;');
+    console.log('%c────────────────────────────────────────────────────────', 'color: #4338ca;');
   }
 }

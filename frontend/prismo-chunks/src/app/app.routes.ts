@@ -8,11 +8,11 @@ import { MelodyDna } from './pages/melody-dna/melody-dna';
 import { Dashboard } from './pages/dashboard/dashboard';
 
 export const routes: Routes = [
-  { path: '', component: Intro },
+  { path: '', component: Landing },
   { path: 'dashboard', component: Dashboard },
   { path: 'world', component: World },
   { path: 'songs', component: Songs },
   { path: 'settings', component: Settings },
-  { path: 'landing', component: Landing },
+  { path: 'landing', component: Intro },
   { path: 'melody-dna', component: MelodyDna}
 ];
