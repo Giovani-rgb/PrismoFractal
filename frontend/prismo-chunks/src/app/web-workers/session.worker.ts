@@ -1,5 +1,5 @@
 /// <reference lib="webworker" />
-import { decryptData } from '../helpers/session.helpers';
+import { decryptData, encryptJson } from '../helpers/session.helpers';
 import { DiffieHellmanModel, DHResult } from '../models/session.model';
 
 addEventListener('message', async ({ data }) => {
@@ -34,6 +34,14 @@ addEventListener('message', async ({ data }) => {
     if (action === 'PROCESS_SESSION') {
       const result = await handleProcessSession(data);
       postMessage({ success: true, ...result });
+      return;
+    }
+
+    // FASE 4: Encriptação de payload de identificação para reidratação via freeze token
+    if (action === 'ENCRYPT_JSON') {
+      const { payload, secret } = data;
+      const encrypted = await encryptJson(payload, secret);
+      postMessage({ success: true, ...encrypted });
       return;
     }
 

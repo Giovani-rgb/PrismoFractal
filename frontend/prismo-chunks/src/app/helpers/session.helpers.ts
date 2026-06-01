@@ -25,6 +25,26 @@ export async function encryptData(data: Session, secret: string): Promise<Encryp
   };
 }
 
+/**
+ * Encripta qualquer objeto JSON com AES-256-GCM usando o sharedSecret.
+ * Usado na reidratação para cifrar o payload de identificação { id_prospect, ts }.
+ */
+export async function encryptJson(payload: object, secret: string): Promise<EncryptedPayload> {
+  const cryptoKey = await deriveKey(secret, ['encrypt']);
+
+  const iv         = crypto.getRandomValues(new Uint8Array(12));
+  const ciphertext = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv },
+    cryptoKey,
+    ENCODER.encode(JSON.stringify(payload))
+  );
+
+  return {
+    ciphertext: btoa(String.fromCharCode(...new Uint8Array(ciphertext))),
+    iv:         btoa(String.fromCharCode(...iv))
+  };
+}
+
 export async function decryptData(data: EncryptedPayload, secret: string): Promise<Session> {
   const cryptoKey = await deriveKey(secret, ['decrypt']);
 

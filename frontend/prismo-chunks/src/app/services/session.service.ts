@@ -7,15 +7,13 @@ import { EncryptedPayload } from '../models/session.model';
 @Injectable({ providedIn: 'root' })
 export class SessionService {
   public sharedSecret: string | null = null;
-  private readonly API_BASE  = `${environment.apiUrl}/api/sessions`;
+  private readonly API_BASE    = `${environment.apiUrl}/api/sessions`;
   private readonly STORAGE_KEY = environment.nameSessionKey;
 
   constructor(private http: HttpClient) {}
 
   /**
-   * DH HANDSHAKE — via global interceptor (tag-based).
-   * Stage 1: no body, returns {p, g, A, windowToken, minWait}
-   * Stage 2: body {B} + X-Window-Token header (injected by interceptor via window._sessionToken)
+   * DH HANDSHAKE — via interceptor global (tag-based).
    */
   publicHandshake(clientB?: string): Observable<any> {
     const body: any = {};
@@ -24,21 +22,25 @@ export class SessionService {
   }
 
   /**
-   * DH HANDSHAKE — direct call with explicit headers (for use inside Rehydrate stage, tag=VOID).
-   * @param clientB  Client's public DH key (undefined = Phase 1)
-   * @param windowToken  Anti-bot window token received from Phase 1 (only for Phase 2)
+   * REIDRATAÇÃO VIA FREEZE TOKEN — POST /public com corpo explícito.
+   * O backend identifica o fluxo de reidratação pela presença de freezeToken + iv + ciphertext.
+   * Usa headers explícitos (sem interceptor de sessão).
    */
-  publicHandshakeDirect(clientB?: string, windowToken?: string): Observable<any> {
-    const body: any = {};
-    if (clientB) body.B = clientB;
-
-    const headers: Record<string, string> = {
-      'X-App-Id': environment.appId,
-      'Authorization': `Bearer ${environment.appSessionSecret}`,
-    };
-    if (windowToken) headers['X-Window-Token'] = windowToken;
-
-    return this.http.post<any>(`${this.API_BASE}/public`, body, { headers });
+  rehydrateWithFreezeToken(
+    freezeToken: string,
+    iv: string,
+    ciphertext: string
+  ): Observable<EncryptedPayload> {
+    return this.http.post<EncryptedPayload>(
+      `${this.API_BASE}/public`,
+      { freezeToken, iv, ciphertext },
+      {
+        headers: {
+          'X-App-Id':      environment.appId,
+          'Authorization': `Bearer ${environment.appSessionSecret}`,
+        },
+      }
+    );
   }
 
   /**
@@ -49,31 +51,12 @@ export class SessionService {
   }
 
   /**
-   * REFRESH (legacy) — POST /refresh with interceptor headers
+   * REFRESH (legado) — POST /refresh
    */
   refreshSessionCookies(): Observable<EncryptedPayload> {
     return this.http.post<EncryptedPayload>(`${this.API_BASE}/refresh`, {}, {
       withCredentials: true,
     });
-  }
-
-  /**
-   * REFRESH via Passport — POST /refresh with explicit JWT + passport token.
-   * Backend decrypts with the DH sharedSecret tied to passportToken.
-   */
-  refreshWithPassportDirect(passportToken: string, jwt: string): Observable<EncryptedPayload> {
-    return this.http.post<EncryptedPayload>(
-      `${this.API_BASE}/refresh`,
-      {},
-      {
-        withCredentials: true,
-        headers: {
-          'Authorization': `Bearer ${jwt}`,
-          'X-Passport-Token': passportToken,
-          'X-App-Id': environment.appId,
-        },
-      }
-    );
   }
 
   saveToStorage(payload: EncryptedPayload): void {

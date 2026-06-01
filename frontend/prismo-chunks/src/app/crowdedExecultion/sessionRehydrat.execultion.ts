@@ -13,7 +13,7 @@ import { environment } from '../../environments/environment';
 @Injectable({ providedIn: 'root' })
 export class SessionRehydrationExecution {
 
-  private readonly STORAGE_KEY  = environment.nameSessionKey;
+  private readonly STORAGE_KEY    = environment.nameSessionKey;
   private readonly VAULT_PASSWORD = environment.vaultPassword;
 
   private orchestrator = inject(SessionPipelineOrchestrator);
@@ -21,23 +21,25 @@ export class SessionRehydrationExecution {
   private cacheService = inject(SessionCacheService);
   private service      = inject(SessionService);
 
-  private readonly LOG_TITLES = 'font-weight: bold; padding: 2px 4px; border-radius: 3px;';
+  private readonly LOG_BADGE = 'font-weight: bold; padding: 2px 4px; border-radius: 3px;';
 
   async execute(): Promise<void> {
-    console.log(`%c[Esteira] 🔄 REHYDRATE pipeline acionado. Analisando integridade...`, 'color: #a5b4fc; font-style: italic;');
+    console.log(`%c[Esteira] 🔄 REHYDRATE pipeline acionado. Analisando integridade...`,
+      'color: #a5b4fc; font-style: italic;');
 
     const state: PrismoSessionState = this.context.currentState;
 
     if (state.tag === SessionTag.REST && state.data) {
-      console.log(`%c[Curto-Circuito] 🟢 Estado ativo em 'REST' com payload íntegro na RAM.`, 'color: #10b981; font-weight: bold;');
+      console.log(`%c[Curto-Circuito] 🟢 Estado ativo em 'REST' com payload íntegro na RAM.`,
+        'color: #10b981; font-weight: bold;');
       return;
     }
 
-    this.context.setOperation(SessionTag.VOID);
     this.context.setOperation(SessionTag.REHYDRATE);
     console.log(`%c[Contrato] 🔍 Tag fixada: "${this.context.currentState.tag}"`, 'color: #38bdf8;');
 
     try {
+
       // ─────────────────────────────────────────────────────────────────
       // STAGE 1: INGESTÃO BRUTA
       // ─────────────────────────────────────────────────────────────────
@@ -52,7 +54,6 @@ export class SessionRehydrationExecution {
       // ─────────────────────────────────────────────────────────────────
       let activeSecret: string | undefined = this.context.currentState.dhResult?.sharedSecret;
       let cachedPermissions: SessionPermition | null = null;
-      let vaultSessionToken: string | undefined;
 
       if (!activeSecret) {
         const vaultData = this.cacheService.recoverVaultData(this.VAULT_PASSWORD);
@@ -61,9 +62,9 @@ export class SessionRehydrationExecution {
         }
         activeSecret      = vaultData.sharedSecret;
         cachedPermissions = vaultData.permissions;
-        vaultSessionToken = vaultData.sessionToken;
-        console.log(`%c VAULT %c Segredo + token recuperados do cache local.`,
-          `background: #6d28d9; color: #fff; ${this.LOG_TITLES}`, 'color: #c084fc;');
+
+        console.log(`%c VAULT %c sharedSecret + permissions (freezerToken incluso) recuperados.`,
+          `background: #6d28d9; color: #fff; ${this.LOG_BADGE}`, 'color: #c084fc;');
       }
 
       // ─────────────────────────────────────────────────────────────────
@@ -90,35 +91,45 @@ export class SessionRehydrationExecution {
       this.context.updatePermitions(permitionScope);
       this.context.setOperation(SessionTag.REHYDRATE);
 
-      console.log(`%c[Stage 4] ✅ Contexto reconstruído localmente. Tag: "${this.context.currentState.tag}"`, 'color: #fbbf24; font-weight: bold;');
-      console.dir(this.context.currentState);
+      console.log(
+        `%c[Stage 4] ✅ Contexto reconstruído localmente. Tag: "${this.context.currentState.tag}"`,
+        'color: #fbbf24; font-weight: bold;'
+      );
 
       // ─────────────────────────────────────────────────────────────────
-      // STAGE 5: RENOVAÇÃO VIA REDE — /public → /refresh (passport)
+      // STAGE 5: RENOVAÇÃO VIA REDE — freeze token → /public (rehydrate run)
       // ─────────────────────────────────────────────────────────────────
-      const sessionToken = this.context.currentState.data?.token ?? vaultSessionToken;
 
-      if (sessionToken) {
-        console.log(`%c STAGE 5 %c Iniciando renovação via /public → /refresh com passaporte DH...`,
-          `background: #0891b2; color: #fff; ${this.LOG_TITLES}`, 'color: #67e8f9;');
+      // O freezeToken vive em permissions.navigation.freezerToken
+      // (gerado em CryptoHelper.upgradeToFreezerContext e incluído no payload)
+      const freezeToken: string | undefined =
+        this.context.currentState.data?.permition?.['navigation']?.['freezerToken']
+        ?? (cachedPermissions as any)?.['navigation']?.['freezerToken'];
 
-        try {
-          await this.rehydrateViaNetwork(sessionToken);
-        } catch (netError) {
-          console.warn(`%c[Stage 5] ⚠️ Renovação de rede falhou. Operando com dados locais.`,
-            'color: #f59e0b', netError);
-        }
+      if (!freezeToken) {
+        console.warn(`%c[Stage 5] ⚠️ freezerToken ausente nas permissions — renovação de rede pulada.`,
+          'color: #f59e0b');
       } else {
-        console.warn(`%c[Stage 5] ⚠️ sessionToken ausente — renovação de rede pulada.`, 'color: #f59e0b');
+        console.log(
+          `%c STAGE 5 %c Renovando via freeze token → /public (rehydrate run)...`,
+          `background: #0891b2; color: #fff; ${this.LOG_BADGE}`, 'color: #67e8f9;'
+        );
+        try {
+          await this.rehydrateViaFreezeToken(freezeToken, activeSecret, dataScope.id_prospect);
+        } catch (netErr) {
+          console.warn(`%c[Stage 5] ⚠️ Renovação de rede falhou. Operando com dados locais.`,
+            'color: #f59e0b', netErr);
+        }
       }
 
       // ─────────────────────────────────────────────────────────────────
       // STAGE 6: SELAR CONTEXTO
       // ─────────────────────────────────────────────────────────────────
       this.context.setOperation(SessionTag.REST);
-      console.log(`%c[Prismo] 🚀 Esteira REHYDRATE concluída. Contexto selado em: "${this.context.currentState.tag}"`,
-        'color: #10b981; font-weight: bold;');
-      console.dir(this.context.currentState);
+      console.log(
+        `%c[Prismo] 🚀 Esteira REHYDRATE concluída. Contexto selado em: "${this.context.currentState.tag}"`,
+        'color: #10b981; font-weight: bold;'
+      );
 
     } catch (error) {
       console.error(`%c[Rehydrate Error] ❌ Falha na esteira:`, 'color: #ef4444', error);
@@ -127,57 +138,54 @@ export class SessionRehydrationExecution {
   }
 
   /**
-   * RENOVAÇÃO DE REDE
-   * 1. Executa handshake DH completo via /public (direto, sem interceptor)
-   * 2. Chama /refresh com o passaporte gerado + JWT da sessão
-   * 3. Atualiza sessionStorage, dhResult no contexto e Vault
+   * RENOVAÇÃO VIA FREEZE TOKEN
+   *
+   * Fluxo:
+   * 1. Encripta { id_prospect, ts } com sharedSecret (via Web Worker / AES-256-GCM)
+   * 2. POST /public com { freezeToken, iv, ciphertext }
+   * 3. Servidor decifra, valida sessão, devolve sessão re-encriptada com o mesmo sharedSecret
+   * 4. Decifra resposta e atualiza contexto + sessionStorage + vault
+   *
+   * Nenhum novo handshake DH é necessário — o sharedSecret já está no vault.
    */
-  private async rehydrateViaNetwork(sessionToken: string): Promise<void> {
-    // Usar tag VOID temporariamente para que o sessionGatekeeper não injete headers incorretos
-    this.context.setOperation(SessionTag.VOID);
+  private async rehydrateViaFreezeToken(
+    freezeToken: string,
+    sharedSecret: string,
+    idProspect: string
+  ): Promise<void> {
 
-    // — Phase 1: /public init —
-    const phase1 = await lastValueFrom(this.service.publicHandshakeDirect());
-    console.log(`%c[Rehydrate Net] 🔑 Phase 1 OK — windowToken: ${phase1.windowToken?.substring(0, 8)}...`,
-      'color: #38bdf8;');
+    // 1. Encripta payload de identificação com sharedSecret (Web Worker)
+    const idPayload = { id_prospect: idProspect, ts: Date.now() };
+    const encryptedId = await SessionWorkerPipe.encryptJson(idPayload, sharedSecret);
+    console.log(`%c[Rehydrate Net] 🔐 Payload de identificação encriptado.`, 'color: #38bdf8;');
 
-    // — DH computation (Web Worker) —
-    const dhContext = await SessionWorkerPipe.stage_dh({ p: phase1.p, g: phase1.g });
-
-    // — Phase 2: /public finalize (with windowToken + B) —
-    const phase2 = await lastValueFrom(
-      this.service.publicHandshakeDirect(dhContext.B, phase1.windowToken)
+    // 2. POST /public com freeze token — sem new DH, sem JWT
+    const freshPayload = await lastValueFrom(
+      this.service.rehydrateWithFreezeToken(freezeToken, encryptedId.iv, encryptedId.ciphertext)
     );
-    const passportToken: string = phase2.anonymousToken;
-    console.log(`%c[Rehydrate Net] 🛂 Passaporte emitido: ${passportToken?.substring(0, 8)}...`,
-      'color: #38bdf8;');
+    console.log(`%c[Rehydrate Net] ✅ Sessão fresca recebida do servidor.`, 'color: #10b981;');
 
-    // — Calculate shared secret —
-    const dhResult = await SessionWorkerPipe.calculateDH(phase2.A, dhContext);
-    if (!dhResult.sharedSecret) {
-      throw new Error('[Rehydrate Net] sharedSecret ausente após cálculo DH.');
+    // 3. Decifra sessão fresca com o mesmo sharedSecret
+    const freshResult = await SessionWorkerPipe.process(freshPayload, sharedSecret);
+    if (!freshResult.session?.id_prospect) {
+      throw new Error('[Rehydrate Net] Sessão fresca inválida — id_prospect ausente.');
     }
 
-    // — /refresh com passaporte —
+    // 4. Atualiza contexto com dados frescos (lastAccessAt, expiresAt, etc.)
+    const { interactions, navigation, rwu, status, ...freshClean } = freshResult.session as any;
+    this.context.setSession(freshClean as Session);
+    this.context.updatePermitions({ interactions, navigation, rwu, status });
     this.context.setOperation(SessionTag.REHYDRATE);
-    const freshPayload = await lastValueFrom(
-      this.service.refreshWithPassportDirect(passportToken, sessionToken)
-    );
-    console.log(`%c[Rehydrate Net] ✅ /refresh OK — payload fresco recebido.`, 'color: #10b981;');
 
-    // — Persistir DH result no contexto —
-    this.context.setDHResult(dhResult);
-
-    // — Atualizar sessionStorage com payload fresco —
+    // 5. Persiste payload fresco em sessionStorage
     this.service.saveToStorage(freshPayload);
 
-    // — Atualizar Vault com novo sharedSecret + sessionToken —
+    // 6. Atualiza vault com dados frescos
     try {
       this.cacheService.saveCurrentContextToVault(this.VAULT_PASSWORD);
-      console.log(`%c[Rehydrate Net] 🔒 Vault atualizado com novo sharedSecret.`, 'color: #818cf8;');
+      console.log(`%c[Rehydrate Net] 🔒 Vault atualizado com dados frescos.`, 'color: #818cf8;');
     } catch (vaultErr) {
-      console.warn(`%c[Rehydrate Net] ⚠️ Vault não atualizado (dados no contexto ausentes?).`,
-        'color: #f59e0b', vaultErr);
+      console.warn(`%c[Rehydrate Net] ⚠️ Vault não pôde ser atualizado.`, 'color: #f59e0b', vaultErr);
     }
   }
 }

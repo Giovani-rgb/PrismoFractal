@@ -81,6 +81,30 @@ export class SessionWorkerPipe {
    * @param secret Chave simétrica obtida através do cálculo do handshake Diffie-Hellman.
    * @returns Promise contendo o objeto de sessão higienizado e metadados de densidade da porta XOR.
    */
+  /**
+   * FASE 4: Encriptação de payload de identificação (reidratação via freeze token).
+   * Cifra { id_prospect, ts } com o sharedSecret do vault antes de enviar ao /public.
+   */
+  static encryptJson(payload: object, secret: string): Promise<EncryptedPayload> {
+    return new Promise((resolve, reject) => {
+      const worker = new Worker(new URL('../web-workers/session.worker.ts', import.meta.url));
+
+      worker.onmessage = ({ data }) => {
+        if (data.success) {
+          const { success, error, ...encrypted } = data;
+          resolve(encrypted as EncryptedPayload);
+        } else {
+          reject(data.error);
+        }
+        worker.terminate();
+      };
+
+      worker.onerror = (err) => { reject(err); worker.terminate(); };
+
+      worker.postMessage({ action: 'ENCRYPT_JSON', payload, secret });
+    });
+  }
+
   static process(raw: EncryptedPayload, secret: string): Promise<any> {
     return new Promise((resolve, reject) => {
       const worker = new Worker(new URL('../web-workers/session.worker.ts', import.meta.url));
