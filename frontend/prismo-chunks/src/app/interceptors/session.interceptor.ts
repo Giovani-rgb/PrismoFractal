@@ -56,11 +56,12 @@ export const transactionInterceptor: HttpInterceptorFn = (req, next) => {
 /**
  * SESSION FLOW INTERCEPTOR
  * Responsável por carimbar a identidade da App e manter a continuidade
- * do túnel criptográfico através do X-Window-Token.
+ * do túnel criptográfico através do X-Window-Token e X-Freezer-Token.
  */
 export const sessionFlowInterceptor: HttpInterceptorFn = (req, next) => {
-  const windowToken   = (window as any)._sessionToken;
-  
+  const context = inject(SessionContext); // Injeção do contexto para pegar o freezerToken
+  const windowToken = (window as any)._sessionToken;
+  const freezerToken = context.currentState.data?.permition?.['navigation']?.['freezerToken'];
 
   const headers: { [key: string]: string } = {
     'X-App-Id': environment.appId,
@@ -72,8 +73,10 @@ export const sessionFlowInterceptor: HttpInterceptorFn = (req, next) => {
     headers['X-Window-Token'] = windowToken;
   }
 
-  
-  
+  // Adiciona o Freezer Token caso ele exista no contexto
+  if (freezerToken) {
+    headers['X-Freezer-Token'] = freezerToken; // Altere o nome do header ('X-Freezer-Token') se o backend esperar outra nomenclatura
+  }
 
   return next(req.clone({ setHeaders: headers }));
 };

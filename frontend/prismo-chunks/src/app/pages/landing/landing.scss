@@ -204,45 +204,6 @@ canvas {
 }
 
 // ─── Feature pills ────────────────────────────────────────
-.feature-strip {
-  display: flex;
-  gap: 8px;
-  padding: 0 20px 14px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  animation: fadeUp .55s ease .22s both;
-
-  &::-webkit-scrollbar { display: none; }
-
-  @media (min-width: 480px) { padding: 0 28px 18px; }
-  @media (min-width: 768px) { padding: 0 40px 20px; gap: 12px; }
-}
-
-.feature-pill {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 12px;
-  border: 1px solid rgba($cyan, .18);
-  background: rgba($cyan, .04);
-  color: rgba($white, .45);
-  font-size: 7px;
-  white-space: nowrap;
-  cursor: default;
-  letter-spacing: .3px;
-  transition: all .2s;
-  animation: borderGlow 3.5s ease-in-out infinite;
-
-  &:hover {
-    border-color: rgba($cyan, .5);
-    background: rgba($cyan, .09);
-    color: $cyan;
-  }
-
-  .pill-icon { font-size: 13px; }
-
-  @media (min-width: 768px) { font-size: 8px; padding: 8px 16px; }
-}
 
 // ─── Auth ─────────────────────────────────────────────────
 .auth-section {
