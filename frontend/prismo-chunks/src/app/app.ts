@@ -118,7 +118,7 @@ export class App implements OnInit {
   private checkRedirect(): void {
     const currentUrl = this.router.url;
     if (currentUrl === '/' || currentUrl === '') {
-      this.router.navigateByUrl('/landing');
+      this.router.navigateByUrl('/');
     }
   }
 

@@ -55,17 +55,23 @@ public class SessionController {
     @PostMapping("/public")
     public ResponseEntity<Map<String, Object>> establishPublicHandshake(
             @RequestBody(required = false) Map<String, String> clientPayload,
-            @RequestHeader(value = "X-Window-Token", required = false) String windowToken
+            @RequestHeader(value = "X-Window-Token",   required = false) String windowToken,
+            @RequestHeader(value = "X-Freezer-Token",  required = false) String freezerTokenHeader
     ) {
         try {
 
             // ── FLUXO 3: REIDRATAÇÃO VIA FREEZE TOKEN ──────────────────────
-            if (clientPayload != null
-                    && clientPayload.containsKey("freezeToken")
+            // freezeToken pode vir no body (legado) OU no header X-Freezer-Token (fluxo atual)
+            final String resolvedFreezeToken = (clientPayload != null && clientPayload.containsKey("freezeToken"))
+                    ? clientPayload.get("freezeToken")
+                    : freezerTokenHeader;
+
+            if (resolvedFreezeToken != null && !resolvedFreezeToken.isBlank()
+                    && clientPayload != null
                     && clientPayload.containsKey("iv")
                     && clientPayload.containsKey("ciphertext")) {
 
-                String freezeToken = clientPayload.get("freezeToken");
+                String freezeToken = resolvedFreezeToken;
                 String iv          = clientPayload.get("iv");
                 String ciphertext  = clientPayload.get("ciphertext");
 

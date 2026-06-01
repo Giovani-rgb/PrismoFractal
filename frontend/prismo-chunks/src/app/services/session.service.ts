@@ -13,34 +13,12 @@ export class SessionService {
   constructor(private http: HttpClient) {}
 
   /**
-   * DH HANDSHAKE — via interceptor global (tag-based).
+   * PIPELINE PÚBLICO UNIFICADO (Handshake DH ou Reidratação AES)
+   * * Como o endpoint é o mesmo, repassamos o payload dinâmico enviado pelo Orquestrador.
+   * Os headers de segurança e o freezerToken são injetados automaticamente via Interceptor.
    */
-  publicHandshake(clientB?: string): Observable<any> {
-    const body: any = {};
-    if (clientB) body.B = clientB;
-    return this.http.post<any>(`${this.API_BASE}/public`, body);
-  }
-
-  /**
-   * REIDRATAÇÃO VIA FREEZE TOKEN — POST /public com corpo explícito.
-   * O backend identifica o fluxo de reidratação pela presença de freezeToken + iv + ciphertext.
-   * Usa headers explícitos (sem interceptor de sessão).
-   */
-  rehydrateWithFreezeToken(
-    freezeToken: string,
-    iv: string,
-    ciphertext: string
-  ): Observable<EncryptedPayload> {
-    return this.http.post<EncryptedPayload>(
-      `${this.API_BASE}/public`,
-      { freezeToken, iv, ciphertext },
-      {
-        headers: {
-          'X-App-Id':      environment.appId,
-          'Authorization': `Bearer ${environment.appSessionSecret}`,
-        },
-      }
-    );
+  executePublicAssignment(payload: any): Observable<any> {
+    return this.http.post<any>(`${this.API_BASE}/public`, payload);
   }
 
   /**

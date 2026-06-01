@@ -1,5 +1,4 @@
 import { Injectable, inject } from '@angular/core';
-import { lastValueFrom } from 'rxjs';
 
 import { SessionPipelineOrchestrator } from '../services-workers/SessionPipelineOrchestrator';
 import { SessionContext } from '../context/session.context';
@@ -58,7 +57,7 @@ export class SessionRehydrationExecution {
       if (!activeSecret) {
         const vaultData = this.cacheService.recoverVaultData(this.VAULT_PASSWORD);
         if (!vaultData?.sharedSecret) {
-          throw new Error('Quebra de Conexão: sharedSecret indisponível no cache and no contexto.');
+          throw new Error('Quebra de Conexão: sharedSecret indisponível no cache e no contexto.');
         }
         activeSecret      = vaultData.sharedSecret;
         cachedPermissions = vaultData.permissions;
@@ -97,7 +96,7 @@ export class SessionRehydrationExecution {
       );
 
       // ─────────────────────────────────────────────────────────────────
-      // STAGE 5: RENOVAÇÃO VIA REDE — freeze token agora via Header
+      // STAGE 5: RENOVAÇÃO VIA REDE (100% ORQUESTRADO)
       // ─────────────────────────────────────────────────────────────────
 
       // O freezeToken vive em permissions.navigation.freezerToken
@@ -110,11 +109,11 @@ export class SessionRehydrationExecution {
           'color: #f59e0b');
       } else {
         console.log(
-          `%c STAGE 5 %c Renovando via freeze token por Header → /public (rehydrate run)...`,
+          `%c STAGE 5 %c Despachando payload criptográfico via Orquestrador...`,
           `background: #0891b2; color: #fff; ${this.LOG_BADGE}`, 'color: #67e8f9;'
         );
         try {
-          await this.rehydrateViaFreezeToken(freezeToken, activeSecret, dataScope.id_prospect);
+          await this.rehydrateViaFreezeToken(activeSecret, dataScope.id_prospect);
         } catch (netErr) {
           console.warn(`%c[Stage 5] ⚠️ Renovação de rede falhou. Operando com dados locais.`,
             'color: #f59e0b', netErr);
@@ -137,16 +136,10 @@ export class SessionRehydrationExecution {
   }
 
   /**
-   * RENOVAÇÃO VIA FREEZE TOKEN (Ajustado para Header no Interceptor)
-   *
-   * Fluxo:
-   * 1. Encripta { id_prospect, ts } com sharedSecret (via Web Worker / AES-256-GCM)
-   * 2. POST /public contendo APENAS { iv, ciphertext } no body.
-   * (O sessionFlowInterceptor injeta o X-Freezer-Token automaticamente via context)
-   * 3. Servidor decifra através do header, valida e devolve sessão re-encriptada
+   * RENOVAÇÃO VIA FREEZE TOKEN
+   * Encripta a identificação e aciona o contrato público do Orquestrador.
    */
   private async rehydrateViaFreezeToken(
-    freezeToken: string,
     sharedSecret: string,
     idProspect: string
   ): Promise<void> {
@@ -154,35 +147,51 @@ export class SessionRehydrationExecution {
     // 1. Encripta payload de identificação com sharedSecret (Web Worker)
     const idPayload = { id_prospect: idProspect, ts: Date.now() };
     const encryptedId = await SessionWorkerPipe.encryptJson(idPayload, sharedSecret);
-    console.log(`%c[Rehydrate Net] 🔐 Payload de identificação encriptado.`, 'color: #38bdf8;');
+    console.log(`%c[Rehydrate Net] 🔐 Payload de identificação encriptado via AES-256.`, 'color: #38bdf8;');
 
-    // 2. POST /public — Removido o freezeToken do envio do método. Mandamos apenas a cifra AES-256
-    const freshPayload = await lastValueFrom(
-      this.service.rehydrateWithFreezeToken(freezeToken, encryptedId.iv, encryptedId.ciphertext)
-    );
-    console.log(`%c[Rehydrate Net] ✅ Sessão fresca recebida do servidor.`, 'color: #10b981;');
+    // 2. MUTAÇÃO TEMPORÁRIA DA TAG
+    // Altera para PUBLIC (ou FLOW) para que o Orquestrador use o contrato com o sessionFlowInterceptor
+    const publicTag = (SessionTag as any).PUBLIC ?? (SessionTag as any).FLOW;
+    this.context.setOperation(publicTag);
+    console.log(`%c[Orquestrador] 🔀 Operação elevada para: "${this.context.currentState.tag}"`, 'color: #e0f2fe;');
 
-    // 3. Decifra sessão fresca com o mesmo sharedSecret
-    const freshResult = await SessionWorkerPipe.process(freshPayload, sharedSecret);
-    if (!freshResult.session?.id_prospect) {
-      throw new Error('[Rehydrate Net] Sessão fresca inválida — id_prospect ausente.');
+    // 3. MONTAGEM DO PAYLOAD STRIP (Apenas a cifra do AES-256)
+    const payloadContrato = { 
+      iv: encryptedId.iv, 
+      ciphertext: encryptedId.ciphertext 
+    };
+    
+    let freshPayload: any;
+    
+    try {
+      // O Orquestrador assume a chamada de rede e o Gatekeeper resolve os headers de sessão
+      freshPayload = await this.orchestrator.executeAssignment(payloadContrato);
+      console.log(`%c[Rehydrate Net] ✅ Resposta processada pelo contrato do Orquestrador.`, 'color: #10b981;');
+    } finally {
+      // O bloco finally garante que mesmo em caso de erro 4xx/500 a esteira não quebre a máquina de estados
+      this.context.setOperation(SessionTag.REHYDRATE);
+      console.log(`%c[Orquestrador] 🔙 Operação restaurada para: "${this.context.currentState.tag}"`, 'color: #e0f2fe;');
     }
 
-    // 4. Atualiza contexto com dados frescos (lastAccessAt, expiresAt, etc.)
+    // 4. Decifra sessão fresca recebida
+    const freshResult = await SessionWorkerPipe.process(freshPayload, sharedSecret);
+    if (!freshResult.session?.id_prospect) {
+      throw new Error('[Rehydrate Net] Erro crítico: Sessão fresca inválida ou corrompida.');
+    }
+
+    // 5. Atualiza o contexto global com a sessão fresca descriptografada
     const { interactions, navigation, rwu, status, ...freshClean } = freshResult.session as any;
     this.context.setSession(freshClean as Session);
     this.context.updatePermitions({ interactions, navigation, rwu, status });
     this.context.setOperation(SessionTag.REHYDRATE);
 
-    // 5. Persiste payload fresco em sessionStorage
+    // 6. Persiste e sincroniza o cofre local
     this.service.saveToStorage(freshPayload);
-
-    // 6. Atualiza vault com dados frescos
     try {
       this.cacheService.saveCurrentContextToVault(this.VAULT_PASSWORD);
       console.log(`%c[Rehydrate Net] 🔒 Vault atualizado com dados frescos.`, 'color: #818cf8;');
     } catch (vaultErr) {
-      console.warn(`%c[Rehydrate Net] ⚠️ Vault não pôde ser atualizado.`, 'color: #f59e0b', vaultErr);
+      console.warn(`%c[Rehydrate Net] ⚠️ Falha ao selar o Vault.`, 'color: #f59e0b', vaultErr);
     }
   }
 }
