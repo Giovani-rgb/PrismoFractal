@@ -58,7 +58,7 @@ export class SessionRehydrationExecution {
       if (!activeSecret) {
         const vaultData = this.cacheService.recoverVaultData(this.VAULT_PASSWORD);
         if (!vaultData?.sharedSecret) {
-          throw new Error('Quebra de Conexão: sharedSecret indisponível no cache e no contexto.');
+          throw new Error('Quebra de Conexão: sharedSecret indisponível no cache and no contexto.');
         }
         activeSecret      = vaultData.sharedSecret;
         cachedPermissions = vaultData.permissions;
@@ -97,11 +97,10 @@ export class SessionRehydrationExecution {
       );
 
       // ─────────────────────────────────────────────────────────────────
-      // STAGE 5: RENOVAÇÃO VIA REDE — freeze token → /public (rehydrate run)
+      // STAGE 5: RENOVAÇÃO VIA REDE — freeze token agora via Header
       // ─────────────────────────────────────────────────────────────────
 
       // O freezeToken vive em permissions.navigation.freezerToken
-      // (gerado em CryptoHelper.upgradeToFreezerContext e incluído no payload)
       const freezeToken: string | undefined =
         this.context.currentState.data?.permition?.['navigation']?.['freezerToken']
         ?? (cachedPermissions as any)?.['navigation']?.['freezerToken'];
@@ -111,7 +110,7 @@ export class SessionRehydrationExecution {
           'color: #f59e0b');
       } else {
         console.log(
-          `%c STAGE 5 %c Renovando via freeze token → /public (rehydrate run)...`,
+          `%c STAGE 5 %c Renovando via freeze token por Header → /public (rehydrate run)...`,
           `background: #0891b2; color: #fff; ${this.LOG_BADGE}`, 'color: #67e8f9;'
         );
         try {
@@ -138,15 +137,13 @@ export class SessionRehydrationExecution {
   }
 
   /**
-   * RENOVAÇÃO VIA FREEZE TOKEN
+   * RENOVAÇÃO VIA FREEZE TOKEN (Ajustado para Header no Interceptor)
    *
    * Fluxo:
    * 1. Encripta { id_prospect, ts } com sharedSecret (via Web Worker / AES-256-GCM)
-   * 2. POST /public com { freezeToken, iv, ciphertext }
-   * 3. Servidor decifra, valida sessão, devolve sessão re-encriptada com o mesmo sharedSecret
-   * 4. Decifra resposta e atualiza contexto + sessionStorage + vault
-   *
-   * Nenhum novo handshake DH é necessário — o sharedSecret já está no vault.
+   * 2. POST /public contendo APENAS { iv, ciphertext } no body.
+   * (O sessionFlowInterceptor injeta o X-Freezer-Token automaticamente via context)
+   * 3. Servidor decifra através do header, valida e devolve sessão re-encriptada
    */
   private async rehydrateViaFreezeToken(
     freezeToken: string,
@@ -159,7 +156,7 @@ export class SessionRehydrationExecution {
     const encryptedId = await SessionWorkerPipe.encryptJson(idPayload, sharedSecret);
     console.log(`%c[Rehydrate Net] 🔐 Payload de identificação encriptado.`, 'color: #38bdf8;');
 
-    // 2. POST /public com freeze token — sem new DH, sem JWT
+    // 2. POST /public — Removido o freezeToken do envio do método. Mandamos apenas a cifra AES-256
     const freshPayload = await lastValueFrom(
       this.service.rehydrateWithFreezeToken(freezeToken, encryptedId.iv, encryptedId.ciphertext)
     );
