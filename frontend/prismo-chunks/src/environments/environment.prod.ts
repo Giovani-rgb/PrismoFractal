@@ -7,6 +7,7 @@ export const environment = {
   apiUrl: '',
   sessionTimeout: 1600000,
   nameSessionKey: 'Gn0rRkBkHyfN7sk5S16ijIKpniaZ2JlHAmfzrU5+V653s5CgmCb7UalrNyOlARSo8SnUUCBpJMigWseRcPLuUP==',
+  vaultPassword: 'Coyxitxufxuftbtvtvrccechucuchcycttgf',
   firebase: {
     apiKey: 'AIzaSyAD14xlUjrDPPqrT27XPFkPjBkDzSbYPoM',
     authDomain: 'prismo-262a2.firebaseapp.com',

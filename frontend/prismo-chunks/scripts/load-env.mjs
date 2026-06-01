@@ -42,6 +42,8 @@ const env = {
   apiUrl,
   sessionTimeout:    process.env.VITE_SESSION_TIMEOUT     || '1800000',
   nameSessionKey:       process.env.VITE_NAME_SESSION_KEY       || 'name_session_key',
+  vaultPassword: process.env.VITE_VAULT_PASSWORD ||
+  'password_vault',
   firebase: {
     apiKey:            process.env.VITE_FIREBASE_API_KEY             || '',
     authDomain:        process.env.VITE_FIREBASE_AUTH_DOMAIN         || '',
@@ -62,6 +64,7 @@ const envContent = `export const environment = {
   apiUrl: '${env.apiUrl}',
   sessionTimeout: ${env.sessionTimeout},
   nameSessionKey: '${env.nameSessionKey}',
+  vaultPassword: '${env.vaultPassword}',
   firebase: {
     apiKey: '${env.firebase.apiKey}',
     authDomain: '${env.firebase.authDomain}',
