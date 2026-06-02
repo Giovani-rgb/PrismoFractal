@@ -71,50 +71,58 @@ public class ServiceSession {
     }
 
     // =========================================================================
-    // REIDRATAÇÃO VIA FREEZE TOKEN (POST /public com payload encriptado)
+    // FLUXO 3: FREEZE REFRESH  (POST /public + X-Freezer-Token + payload cifrado)
     // =========================================================================
 
     /**
-     * Reidratação de sessão via Freeze Token.
+     * Renovação de sessão via Freeze Token — delegação interna ao contrato de /refresh.
      * <p>
-     * O cliente envia o freezeToken (persistido no vault local) junto com um payload
-     * AES-256-GCM contendo { id_prospect, ts }. O servidor:
+     * Análogo ao Fluxo 2 que emite um passaporte para /anonymous, aqui o freeze token
+     * serve como credencial de longa-duração que autoriza a renovação da sessão sem
+     * novo handshake DH. O token é mantido em paralelo no dhContexts (não consumido).
+     * <p>
+     * Etapas:
      * <ol>
-     *   <li>Recupera o sharedSecret via freezeToken (dhContexts em RAM)</li>
-     *   <li>Decifra o payload de identificação</li>
-     *   <li>Localiza e valida a sessão pelo id_prospect</li>
-     *   <li>Retorna a sessão re-encriptada com o MESMO sharedSecret</li>
+     *   <li>Recupera o sharedSecret via X-Freezer-Token (dhContexts — leitura, sem remoção)</li>
+     *   <li>Decifra o payload AES-256-GCM para extrair { id_prospect, ts }</li>
+     *   <li>Delega ao contrato de /refresh: busca sessão ativa, atualiza lastAccessAt e keyUpdate</li>
+     *   <li>Persiste o estado renovado no banco</li>
+     *   <li>Retorna a sessão re-encriptada com o MESMO sharedSecret do freeze token</li>
      * </ol>
      *
-     * @param freezeToken O token de congelamento gerado no upgrade /anonymous → Freezer
-     * @param iv          IV Base64 do payload encriptado pelo cliente
-     * @param ciphertext  Ciphertext Base64 do payload encriptado pelo cliente
-     * @return Sessão re-encriptada com o sharedSecret do freezeToken
+     * @param freezeToken O token de congelamento recebido via header X-Freezer-Token
+     * @param iv          IV Base64 do payload cifrado pelo cliente
+     * @param ciphertext  Ciphertext Base64 do payload cifrado pelo cliente
+     * @return Sessão renovada e re-encriptada com o sharedSecret do freeze token
      */
-    public Map<String, String> handleFreezeRehydrate(String freezeToken, String iv, String ciphertext) {
-        log.info("[SERVICE SESSION - REHYDRATE] Reidratação via freeze token: {}...",
+    public Map<String, String> handleFreezeRefresh(String freezeToken, String iv, String ciphertext) {
+        log.info("[FREEZE REFRESH] Iniciando renovação via freeze token: {}...",
                 freezeToken.substring(0, Math.min(8, freezeToken.length())));
 
-        // 1. Recupera o sharedSecret associado ao freezeToken
+        // 1. Recupera o sharedSecret — usa .get() para manter o contexto ativo em paralelo
         String sharedSecret = getSecretByToken(freezeToken);
         if (sharedSecret == null) {
-            log.warn("[REHYDRATE] Freeze token inválido ou sessão expirada no servidor: {}",
-                    freezeToken.substring(0, 8));
+            log.warn("[FREEZE REFRESH] Freeze token inválido ou contexto expirado: {}",
+                    freezeToken.substring(0, Math.min(8, freezeToken.length())));
             throw new RuntimeException("Freeze token inválido — sessão expirada ou servidor reiniciado.");
         }
 
         // 2. Decifra o payload de identificação enviado pelo cliente
         String json = responseQueries.decryptPayload(iv, ciphertext, sharedSecret);
-        log.debug("[REHYDRATE] Payload de identificação decifrado: {}", json);
+        log.debug("[FREEZE REFRESH] Payload de identificação decifrado com sucesso.");
 
-        // 3. Extrai o id_prospect
+        // 3. Extrai o id_prospect do JSON decifrado
         UUID sessionId = extractIdProspect(json);
 
-        // 4. Localiza a sessão ativa no banco
+        // 4. Delega ao contrato de /refresh:
+        //    busca sessão ativa, atualiza timestamp de acesso e rotaciona keyUpdate
         Session session = getActiveSession(sessionId);
-        log.info("[REHYDRATE] ✅ Sessão {} encontrada. Reencriptando com sharedSecret do freezeToken.", session.getId());
+        session.setLastAccessAt(LocalDateTime.now());
+        session.setKeyUpdate(UUID.randomUUID());
+        repository.save(session);
+        log.info("[FREEZE REFRESH] ✅ Sessão {} renovada. lastAccessAt e keyUpdate atualizados.", session.getId());
 
-        // 5. Retorna a sessão re-encriptada com o MESMO sharedSecret (sem novo DH)
+        // 5. Retorna a sessão re-encriptada com o sharedSecret do freeze token
         return responseQueries.sanitizeAndEncrypt(session, sharedSecret);
     }
 

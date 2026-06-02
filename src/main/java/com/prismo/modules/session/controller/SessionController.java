@@ -45,11 +45,13 @@ public class SessionController {
     // =========================================================================
 
     /**
-     * POST /public — identifica o fluxo pelo corpo da requisição:
+     * POST /public — identifica o fluxo pelo corpo e headers da requisição:
      * <ul>
      *   <li><b>Fase 1 (novo handshake)</b>: corpo vazio ou sem chaves relevantes</li>
      *   <li><b>Fase 2 (callback DH)</b>: corpo contém "B" + header X-Window-Token</li>
-     *   <li><b>Rehydrate</b>: corpo contém "freezeToken" + "iv" + "ciphertext"</li>
+     *   <li><b>Fluxo 3 (freeze refresh)</b>: header X-Freezer-Token + corpo { iv, ciphertext };
+     *       delega internamente ao contrato de /refresh (atualiza lastAccessAt, keyUpdate);
+     *       o freeze token é mantido em paralelo no dhContexts (não consumido)</li>
      * </ul>
      */
     @PostMapping("/public")
@@ -75,11 +77,11 @@ public class SessionController {
                 String iv          = clientPayload.get("iv");
                 String ciphertext  = clientPayload.get("ciphertext");
 
-                log.info("[CONTROLLER - REHYDRATE] Reidratação via freeze token: {}...",
+                log.info("[CONTROLLER - FREEZE REFRESH] Delegando renovação via freeze token: {}...",
                         freezeToken.substring(0, Math.min(8, freezeToken.length())));
 
                 Map<String, String> encryptedSession =
-                        service.handleFreezeRehydrate(freezeToken, iv, ciphertext);
+                        service.handleFreezeRefresh(freezeToken, iv, ciphertext);
 
                 return ResponseEntity.ok(new HashMap<>(encryptedSession));
             }
