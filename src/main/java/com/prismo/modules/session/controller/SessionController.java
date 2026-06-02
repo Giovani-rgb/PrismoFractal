@@ -1,13 +1,12 @@
 package com.prismo.modules.session.controller;
 
 import com.prismo.config.JwtService;
+import com.prismo.logger.AppLogger; // Importação correta do Wrapper Global
 import com.prismo.modules.session.model.Session;
 import com.prismo.modules.session.service.ServiceSession;
 import com.prismo.modules.session.repository.ResponseQueries;
 
 import jakarta.servlet.http.HttpServletRequest;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -15,7 +14,6 @@ import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -23,21 +21,22 @@ import java.util.UUID;
 @RequestMapping("/api/sessions")
 public class SessionController {
 
-    private static final Logger log = LoggerFactory.getLogger(SessionController.class);
-
     private final ServiceSession  service;
     private final ResponseQueries responseQueries;
     private final JwtService      jwtService;
+    private final AppLogger       log; // Injeção do nosso Logger customizado
 
     @Value("${app.session.secret}")
     private String appSessionSecret;
 
     public SessionController(ServiceSession service,
                              ResponseQueries responseQueries,
-                             JwtService jwtService) {
+                             JwtService jwtService,
+                             AppLogger log) {
         this.service         = service;
         this.responseQueries = responseQueries;
         this.jwtService      = jwtService;
+        this.log             = log;
     }
 
     // =========================================================================
@@ -47,11 +46,9 @@ public class SessionController {
     /**
      * POST /public — identifica o fluxo pelo corpo e headers da requisição:
      * <ul>
-     *   <li><b>Fase 1 (novo handshake)</b>: corpo vazio ou sem chaves relevantes</li>
-     *   <li><b>Fase 2 (callback DH)</b>: corpo contém "B" + header X-Window-Token</li>
-     *   <li><b>Fluxo 3 (freeze refresh)</b>: header X-Freezer-Token + corpo { iv, ciphertext };
-     *       delega internamente ao contrato de /refresh (atualiza lastAccessAt, keyUpdate);
-     *       o freeze token é mantido em paralelo no dhContexts (não consumido)</li>
+     * <li><b>Fase 1 (novo handshake)</b>: corpo vazio ou sem chaves relevantes</li>
+     * <li><b>Fase 2 (callback DH)</b>: corpo contém "B" + header X-Window-Token</li>
+     * <li><b>Fluxo 3 (freeze refresh)</b>: header X-Freezer-Token + corpo { iv, ciphertext }</li>
      * </ul>
      */
     @PostMapping("/public")
@@ -61,9 +58,7 @@ public class SessionController {
             @RequestHeader(value = "X-Freezer-Token",  required = false) String freezerTokenHeader
     ) {
         try {
-
             // ── FLUXO 3: EMISSÃO DO PASSAPORTE PARA /refresh ───────────────
-            // freezeToken vem no header X-Freezer-Token (ou body como fallback legado)
             final String resolvedFreezeToken = (clientPayload != null && clientPayload.containsKey("freezeToken"))
                     ? clientPayload.get("freezeToken")
                     : freezerTokenHeader;
@@ -77,7 +72,7 @@ public class SessionController {
                 String iv          = clientPayload.get("iv");
                 String ciphertext  = clientPayload.get("ciphertext");
 
-                log.info("[CONTROLLER - FREEZE PASSPORT] Emitindo passaporte para /refresh via freeze token: {}...",
+                log.request("Emissão de passaporte para /refresh solicitada via Freeze Token (Prefixo: {}).",
                         freezeToken.substring(0, Math.min(8, freezeToken.length())));
 
                 Map<String, Object> passportData =
@@ -88,31 +83,32 @@ public class SessionController {
 
             // ── FLUXO 2: FASE 2 DO HANDSHAKE DH ───────────────────────────
             if (clientPayload != null && clientPayload.containsKey("B")) {
-                log.info("[CONTROLLER - PUBLIC FASE 2] Callback recebido. Validando cliente.");
+                log.controllers("Callback Diffie-Hellman (Fase 2) recebido. Validando integridade do cliente.");
 
                 if (windowToken == null || windowToken.isBlank()) {
-                    log.warn("[CONTROLLER - PUBLIC FASE 2] Bloqueado: X-Window-Token ausente.");
+                    log.warning("Handshake DH abortado: Header 'X-Window-Token' ausente na requisição.");
                     return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                             .body(Map.of("error", "Token de janela ausente no Header X-Window-Token."));
                 }
 
                 Map<String, Object> anonymousData =
                         service.handlePublicFinalize(windowToken, clientPayload.get("B"));
-                log.info("[CONTROLLER - PUBLIC FASE 2] Handshake finalizado. Passaporte emitido.");
+                
+                log.controllers("Handshake Diffie-Hellman finalizado com sucesso. Passaporte de canal criptográfico emitido.");
                 return ResponseEntity.ok(anonymousData);
             }
 
             // ── FLUXO 1: FASE 1 DO HANDSHAKE DH ───────────────────────────
-            log.info("[CONTROLLER - PUBLIC FASE 1] Requisição inicial recebida.");
+            log.controllers("Iniciando Fase 1 do handshake seguro público (DH Init).");
             Map<String, Object> dhParams = service.handlePublicInit();
             return ResponseEntity.ok(dhParams);
 
         } catch (RuntimeException e) {
-            log.error("[CONTROLLER - PUBLIC] Falha no fluxo seguro: {}", e.getMessage());
+            log.warning("Falha controlada no fluxo seguro de negociação criptográfica: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
-            log.error("[CONTROLLER - PUBLIC] Erro crítico.", e);
+            log.error("Erro crítico inesperado no handshake público de sessões", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Erro interno: " + e.getMessage()));
         }
@@ -129,15 +125,18 @@ public class SessionController {
             @RequestHeader(value = "X-Anonymous-Token", required = false)         String anonymousToken
     ) {
         try {
-            log.info("[CONTROLLER - ANONYMOUS] Tentativa de criação de sessão anônima.");
+            log.controllers("Tentativa de inicialização de nova sessão anônima no ecossistema.");
 
             if (anonymousToken == null || anonymousToken.isBlank()) {
+                log.warning("Criação de sessão rejeitada: Header 'X-Anonymous-Token' está ausente.");
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                         .body(Map.of("error", "X-Anonymous-Token obrigatório nesta rota."));
             }
 
+            log.queries("Recuperando segredo compartilhado associado ao token anônimo.");
             String sharedSecret = service.getSecretByToken(anonymousToken);
             if (sharedSecret == null) {
+                log.warning("Acesso negado: Sessão criptográfica do token fornecido expirou ou inexiste na esteira.");
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                         .body(Map.of("error", "Sessão criptográfica expirada ou inexistente."));
             }
@@ -145,18 +144,19 @@ public class SessionController {
             String ip = extractIp(request);
             Session session = service.createAnonymous(ip, userAgent);
 
+            log.controllers("Promovendo contexto anônimo (Upgrade) e cifrando carga de resposta.");
             Map<String, Object> upgradeData = service.handleAnonymousUpgrade(anonymousToken);
             Map<String, String> encrypted   = responseQueries.sanitizeAndEncrypt(session, upgradeData, sharedSecret);
 
             ResponseCookie cookie = service.generateSessionCookie(encrypted.get("ciphertext"));
 
-            log.info("[CONTROLLER - ANONYMOUS] Sessão criada: {}", session.getId());
+            log.controllers("Sessão persistida com sucesso e vinculada ao ID UUID: {}", session.getId());
             return ResponseEntity.ok()
                     .header(HttpHeaders.SET_COOKIE, cookie.toString())
                     .body(encrypted);
 
         } catch (RuntimeException e) {
-            log.error("[CONTROLLER - ANONYMOUS] Erro: {}", e.getMessage());
+            log.error("Falha ao instanciar sessão anônima via pipeline seguro: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(Map.of("error", e.getMessage()));
         } finally {
@@ -170,36 +170,26 @@ public class SessionController {
     // POST /refresh  —  Renovação via Passaporte (Fluxo 3) ou JWT (legado)
     // =========================================================================
 
-    /**
-     * Dois modos de operação:
-     * <ul>
-     *   <li><b>Passaporte (Fluxo 3)</b>: header X-Refresh-Passport presente →
-     *       consome o passport emitido pelo /public, renova sessão e encripta com
-     *       o sharedSecret do canal DH original (não o appSessionSecret).</li>
-     *   <li><b>Legado JWT</b>: Authorization: Bearer JWT →
-     *       renova sessão e encripta com appSessionSecret.</li>
-     * </ul>
-     */
     @PostMapping("/refresh")
     public ResponseEntity<?> refresh(
             @RequestHeader(value = "X-Refresh-Passport", required = false) String refreshPassport,
             @RequestHeader(value = "Authorization",       required = false) String authHeader
     ) {
-        log.info("[CONTROLLER - REFRESH] Solicitação de renovação recebida.");
+        log.request("Solicitação de renovação (Refresh) interceptada.");
 
         // ── MODO 1: PASSAPORTE EMITIDO PELO FLUXO 3 ───────────────────────
         if (refreshPassport != null && !refreshPassport.isBlank()) {
             try {
-                log.info("[CONTROLLER - REFRESH] Modo passaporte. Passport: {}...",
+                log.controllers("Modo de atualização por Passaporte ativo. Prefixo analisado: {}...",
                         refreshPassport.substring(0, Math.min(8, refreshPassport.length())));
 
                 Map<String, String> encrypted = service.handleRefreshWithPassport(refreshPassport);
 
-                log.info("[CONTROLLER - REFRESH] ✅ Sessão renovada via passaporte.");
+                log.controllers("Sessão renovada com sucesso via passaporte DH isolado.");
                 return ResponseEntity.ok(encrypted);
 
             } catch (RuntimeException e) {
-                log.warn("[CONTROLLER - REFRESH] Passaporte inválido: {}", e.getMessage());
+                log.warning("Tentativa de renovação inválida com passaporte corrompido/expirado: {}", e.getMessage());
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                         .body(Map.of("error", e.getMessage()));
             }
@@ -207,6 +197,7 @@ public class SessionController {
 
         // ── MODO 2: JWT LEGADO ─────────────────────────────────────────────
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            log.warning("Requisição de refresh abortada: Ausência de credenciais (Passaporte ou JWT inexistentes).");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "X-Refresh-Passport ou Authorization Bearer obrigatório."));
         }
@@ -216,17 +207,19 @@ public class SessionController {
             String sessionIdStr = jwtService.extractSubject(jwt);
             UUID   sessionId    = UUID.fromString(sessionIdStr);
 
+            log.queries("Buscando sessão ativa para o UUID extraído do token legível.");
             Session activeSession = service.getActiveSession(sessionId);
+            
             Map<String, String> encrypted = responseQueries.sanitizeAndEncrypt(activeSession, appSessionSecret);
             ResponseCookie cookie = service.generateSessionCookie(encrypted.get("ciphertext"));
 
-            log.info("[CONTROLLER - REFRESH] Sessão {} renovada via JWT.", activeSession.getId());
+            log.controllers("Sessão corporativa [{}] estendida e atualizada via assinatura JWT.", activeSession.getId());
             return ResponseEntity.ok()
                     .header(HttpHeaders.SET_COOKIE, cookie.toString())
                     .body(encrypted);
 
         } catch (Exception e) {
-            log.error("[CONTROLLER - REFRESH] Falha JWT: {}", e.getMessage());
+            log.error("Falha no pipeline de validação do refresh via assinatura JWT: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "Sessão inválida ou expirada."));
         }
@@ -238,7 +231,7 @@ public class SessionController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> revoke(@PathVariable UUID id) {
-        log.info("[CONTROLLER - DELETE] Revogando sessão: {}", id);
+        log.admin("Ação de Revogação de Sessão acionada para o ID: {}", id);
         service.revoke(id);
         return ResponseEntity.noContent().build();
     }

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <include src="org/springframework/boot/logging/logback/defaults.xml" />
+
+    <conversionRule conversionWord="customLevel" converterClass="com.prismo.logger.CustomLevelConverter" />
+
+    <springProperty scope="context" name="derivedLogLevel" source="app.logger.level" defaultValue="${APP_LOG_LEVEL:-INFO}"/>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %clr(%customLevel){magenta} %clr(%5pid){magenta} --- [%15.15t] : %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <logger name="com.prismo.logger" level="${derivedLogLevel}" additivity="false">
+        <appender-ref ref="CONSOLE" />
+    </logger>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE" />
+    </root>
+
+</configuration>

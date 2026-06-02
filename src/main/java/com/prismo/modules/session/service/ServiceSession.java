@@ -2,13 +2,12 @@ package com.prismo.modules.session.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.prismo.config.JwtService;
+import com.prismo.logger.AppLogger; // Importação correta do seu Wrapper Global
 import com.prismo.modules.session.dto.DiffieHellmanModel;
 import com.prismo.modules.session.model.Session;
 import com.prismo.modules.session.repository.ResponseQueries;
 import com.prismo.modules.session.repository.SessionRepository;
 import jakarta.persistence.EntityNotFoundException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,25 +25,26 @@ import java.util.UUID;
 @Transactional
 public class ServiceSession {
 
-    private static final Logger log = LoggerFactory.getLogger(ServiceSession.class);
-
     private final SessionRepository  repository;
     private final GeoLocationService geoLocationService;
     private final JwtService         jwtService;
     private final CryptoHelper       cryptoHelper;
     private final ResponseQueries    responseQueries;
+    private final AppLogger          log; // Injeção do nosso Logger customizado
     private final ObjectMapper       objectMapper = new ObjectMapper();
 
     public ServiceSession(SessionRepository repository,
                           GeoLocationService geoLocationService,
                           JwtService jwtService,
                           CryptoHelper cryptoHelper,
-                          ResponseQueries responseQueries) {
+                          ResponseQueries responseQueries,
+                          AppLogger log) {
         this.repository      = repository;
         this.geoLocationService = geoLocationService;
         this.jwtService      = jwtService;
         this.cryptoHelper    = cryptoHelper;
         this.responseQueries = responseQueries;
+        this.log             = log;
     }
 
     // =========================================================================
@@ -52,21 +52,21 @@ public class ServiceSession {
     // =========================================================================
 
     public Map<String, Object> handlePublicInit() {
-        log.info("[SERVICE SESSION - FASE 1] Inicializando contexto seguro para nova conexão.");
+        log.controllers("Handshake Fase 1: Inicializando contexto seguro para nova conexão de entrada.");
         String windowToken = UUID.randomUUID().toString();
         Map<String, Object> publicPayload = cryptoHelper.initiatePublicContext(windowToken);
-        log.debug("[SERVICE SESSION - FASE 1] Parâmetros DH gerados para token: {}", windowToken);
+        log.controllers("Handshake Fase 1: Parâmetros Diffie-Hellman consolidados para o Window Token: {}", windowToken);
         return publicPayload;
     }
 
     public Map<String, Object> handlePublicFinalize(String windowToken, String clientBHex) {
-        log.info("[SERVICE SESSION - FASE 2] Recebido retorno do cliente. Token: {}", windowToken);
+        log.controllers("Handshake Fase 2: Recebido retorno de chave pública 'B' do cliente. Token: {}", windowToken);
         Map<String, Object> publicHandshakeResult = cryptoHelper.finalizePublicHandshake(windowToken, clientBHex);
 
         @SuppressWarnings("unchecked")
         Map<String, Object> anonymousPass = (Map<String, Object>) publicHandshakeResult.get("anonymousPass");
 
-        log.info("[SERVICE SESSION - FASE 2] Handshake fechado. Passaporte /anonymous emitido.");
+        log.controllers("Handshake Fase 2: Chave secreta finalizada. Passaporte para a rota /anonymous emitido com sucesso.");
         return anonymousPass;
     }
 
@@ -76,26 +76,16 @@ public class ServiceSession {
 
     /**
      * Fluxo 3 do /public — análogo ao Fluxo 2 que emite anonymousToken para /anonymous.
-     * <p>
-     * Recebe o payload cifrado, recupera o sharedSecret via X-Freezer-Token,
-     * valida a sessão e emite um refreshPassport. O frontend usa esse passaporte
-     * para chamar /refresh diretamente — sem expor o freeze token novamente.
-     * O freeze token é mantido em paralelo no dhContexts (não consumido).
-     *
-     * @param freezeToken O token de congelamento recebido via header X-Freezer-Token
-     * @param iv          IV Base64 do payload cifrado pelo cliente
-     * @param ciphertext  Ciphertext Base64 do payload cifrado pelo cliente
-     * @return Map com { refreshPassport, status, minWait }
      */
     public Map<String, Object> handleFreezePassportIssue(String freezeToken, String iv, String ciphertext) {
-        log.info("[FREEZE PASSPORT] Emissão de passaporte via freeze token: {}...",
+        log.controllers("Fluxo Freeze Passport: Iniciando emissão de passaporte via Freeze Token (Prefixo: {}...).",
                 freezeToken.substring(0, Math.min(8, freezeToken.length())));
 
         // 1. Recupera o sharedSecret — .get() mantém o contexto ativo em paralelo
+        log.queries("Buscando segredo criptográfico compartilhado para reidratação de canal.");
         String sharedSecret = getSecretByToken(freezeToken);
         if (sharedSecret == null) {
-            log.warn("[FREEZE PASSPORT] Freeze token inválido ou contexto expirado: {}",
-                    freezeToken.substring(0, Math.min(8, freezeToken.length())));
+            log.warning("Fluxo Freeze Passport abortado: Contexto criptográfico expirou ou o token informado é inválido.");
             throw new RuntimeException("Freeze token inválido — sessão expirada ou servidor reiniciado.");
         }
 
@@ -104,8 +94,9 @@ public class ServiceSession {
         UUID   sessionId = extractIdProspect(json);
 
         // 3. Valida que a sessão existe e está ativa (sem modificar nada ainda)
+        log.queries("Validando integridade da sessão [{}] mapeada a partir do payload decifrado.", sessionId);
         Session session = getActiveSession(sessionId);
-        log.info("[FREEZE PASSPORT] Sessão {} validada. Emitindo passaporte de renovação.", session.getId());
+        log.controllers("Fluxo Freeze Passport: Sessão verificada e ativa. Encaminhando geração de token de uso único.");
 
         // 4. Gera o refreshPassport e vincula freeze token + sessionId nos mapas do CryptoHelper
         String refreshPassport = cryptoHelper.generateRefreshPassport(freezeToken, session.getId().toString());
@@ -123,28 +114,25 @@ public class ServiceSession {
 
     /**
      * Consome o refreshPassport emitido pelo Fluxo 3 e executa a renovação completa da sessão.
-     * <p>
-     * O passport vincula internamente o freeze token (para recuperar o sharedSecret)
-     * e o sessionId. Após consumo o passport é descartado (single-use).
-     *
-     * @param refreshPassport Token de passaporte emitido pelo Fluxo 3 do /public
-     * @return Sessão renovada, cifrada com o sharedSecret do freeze token original
      */
     public Map<String, String> handleRefreshWithPassport(String refreshPassport) {
-        log.info("[REFRESH PASSPORT] Consumindo passaporte: {}...",
+        log.controllers("Consumindo passaporte de uso único (Single-use Passport: {}...).",
                 refreshPassport.substring(0, Math.min(8, refreshPassport.length())));
 
         // 1. Consome o passport — single-use, remove dos mapas
         String[] ctx = cryptoHelper.consumeRefreshPassport(refreshPassport);
         if (ctx == null) {
+            log.warning("Falha de consumo: Passaporte de renovação já foi utilizado ou é inválido.");
             throw new RuntimeException("Passaporte de renovação inválido ou já utilizado.");
         }
         String freezeToken    = ctx[0];
         String sessionIdStr   = ctx[1];
 
         // 2. Recupera o sharedSecret via freeze token (ainda vivo em paralelo)
+        log.queries("Recuperando segredo de canal persistido em paralelo associado ao Freeze Token.");
         String sharedSecret = getSecretByToken(freezeToken);
         if (sharedSecret == null) {
+            log.warning("Falha de reidratação: Contexto criptográfico original expirou em memória.");
             throw new RuntimeException("Contexto criptográfico expirado — freeze token não encontrado.");
         }
 
@@ -156,7 +144,7 @@ public class ServiceSession {
         session.setLastAccessAt(LocalDateTime.now());
         session.setKeyUpdate(UUID.randomUUID());
         repository.save(session);
-        log.info("[REFRESH PASSPORT] ✅ Sessão {} renovada via passaporte.", session.getId());
+        log.controllers("Sessão [{}] estendida e salva. Chave rotativa modificada com sucesso.", session.getId());
 
         // 5. Encripta com o sharedSecret do canal DH original (não o appSessionSecret)
         return responseQueries.sanitizeAndEncrypt(session, sharedSecret);
@@ -174,6 +162,7 @@ public class ServiceSession {
         } catch (RuntimeException re) {
             throw re;
         } catch (Exception e) {
+            log.error("Falha no parse estrutural do JSON do prospect.", e);
             throw new RuntimeException("Falha ao extrair id_prospect: " + e.getMessage());
         }
     }
@@ -183,7 +172,7 @@ public class ServiceSession {
     // =========================================================================
 
     public Session createAnonymous(String ipAddress, String userAgent) {
-        log.info("[SERVICE SESSION - CRUD] Criando nova sessão anônima. IP: {}", ipAddress);
+        log.queries("Instanciando registro bruto de sessão anônima no banco de dados.");
 
         UUID   sessionId = UUID.randomUUID();
         String jwt       = jwtService.generateToken(sessionId.toString(), 30L * 24 * 60 * 60 * 1000);
@@ -199,14 +188,14 @@ public class ServiceSession {
         session.setRevoked(false);
 
         Session saved = repository.save(session);
-        log.debug("[SERVICE SESSION - CRUD] Sessão anônima criada: {}", saved.getId());
+        log.queries("Sessão persistida no Supabase com ID: {}", saved.getId());
         return saved;
     }
 
     public Map<String, Object> handleAnonymousUpgrade(String anonymousToken) {
-        log.info("[SERVICE SESSION - FASE 3] Processando upgrade /anonymous → Freezer.");
+        log.controllers("Processando transição e upgrade de contexto: Anonymous -> Freezer.");
         Map<String, Object> permissionPayload = cryptoHelper.upgradeToFreezerContext(anonymousToken);
-        log.info("[SERVICE SESSION - FASE 3] Freezer context consolidado.");
+        log.controllers("Contexto Freezer consolidado em memória.");
         return permissionPayload;
     }
 
@@ -215,19 +204,19 @@ public class ServiceSession {
     // =========================================================================
 
     public Session getActiveSession(UUID sessionId) {
-        log.debug("[SERVICE SESSION - CRUD] Buscando sessão ativa: {}", sessionId);
+        log.queries("Executando verificação de revogação/existência para ID: {}", sessionId);
         return repository.findById(sessionId)
                 .filter(s -> !s.isRevoked())
                 .orElseThrow(() -> new EntityNotFoundException("Sessão inválida, revogada ou não encontrada."));
     }
 
     public void revoke(UUID sessionId) {
-        log.info("[SERVICE SESSION - CRUD] Revogando sessão: {}", sessionId);
+        log.queries("Buscando sessão para execução de exclusão lógica (Revogação). ID: {}", sessionId);
         Session session = repository.findById(sessionId)
                 .orElseThrow(() -> new EntityNotFoundException("Sessão não encontrada para revogação."));
         session.setRevoked(true);
         repository.save(session);
-        log.info("[SERVICE SESSION - CRUD] Sessão {} revogada.", sessionId);
+        log.queries("Sessão [{}] marcada com sucesso como revogada.", sessionId);
     }
 
     // =========================================================================
@@ -249,7 +238,7 @@ public class ServiceSession {
     }
 
     public void cleanup(String token) {
-        log.info("[SERVICE SESSION - CLEANUP] Descartando token: {}", token);
+        log.controllers("Rotina de Cleanup: Descartando e invalidando token temporário: {}", token);
         cryptoHelper.fullCleanup(token);
     }
 
@@ -259,6 +248,7 @@ public class ServiceSession {
                     .digest((ip + "|" + userAgent).getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(hash);
         } catch (NoSuchAlgorithmException e) {
+            log.error("Algoritmo de hash SHA-256 indisponível no ambiente da JVM atual.");
             throw new RuntimeException("Erro interno de hash");
         }
     }
@@ -267,7 +257,8 @@ public class ServiceSession {
         try {
             return geoLocationService.getCountryByIp(ipAddress);
         } catch (Exception e) {
-            log.warn("[SERVICE SESSION] Falha de GeoLoc para IP {}. Fallback: UNKNOWN.", ipAddress);
+            // Log de aviso isolado, pois não interrompe a esteira do sistema
+            log.warning("Falha ao resolver GeoLocalização para o IP [{}]. Aplicando Fallback: UNKNOWN.", ipAddress);
             return "UNKNOWN";
         }
     }
