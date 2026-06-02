@@ -62,8 +62,8 @@ public class SessionController {
     ) {
         try {
 
-            // ── FLUXO 3: REIDRATAÇÃO VIA FREEZE TOKEN ──────────────────────
-            // freezeToken pode vir no body (legado) OU no header X-Freezer-Token (fluxo atual)
+            // ── FLUXO 3: EMISSÃO DO PASSAPORTE PARA /refresh ───────────────
+            // freezeToken vem no header X-Freezer-Token (ou body como fallback legado)
             final String resolvedFreezeToken = (clientPayload != null && clientPayload.containsKey("freezeToken"))
                     ? clientPayload.get("freezeToken")
                     : freezerTokenHeader;
@@ -77,13 +77,13 @@ public class SessionController {
                 String iv          = clientPayload.get("iv");
                 String ciphertext  = clientPayload.get("ciphertext");
 
-                log.info("[CONTROLLER - FREEZE REFRESH] Delegando renovação via freeze token: {}...",
+                log.info("[CONTROLLER - FREEZE PASSPORT] Emitindo passaporte para /refresh via freeze token: {}...",
                         freezeToken.substring(0, Math.min(8, freezeToken.length())));
 
-                Map<String, String> encryptedSession =
-                        service.handleFreezeRefresh(freezeToken, iv, ciphertext);
+                Map<String, Object> passportData =
+                        service.handleFreezePassportIssue(freezeToken, iv, ciphertext);
 
-                return ResponseEntity.ok(new HashMap<>(encryptedSession));
+                return ResponseEntity.ok(passportData);
             }
 
             // ── FLUXO 2: FASE 2 DO HANDSHAKE DH ───────────────────────────
@@ -167,18 +167,48 @@ public class SessionController {
     }
 
     // =========================================================================
-    // POST /refresh  —  Renovação (legado via appSessionSecret)
+    // POST /refresh  —  Renovação via Passaporte (Fluxo 3) ou JWT (legado)
     // =========================================================================
 
+    /**
+     * Dois modos de operação:
+     * <ul>
+     *   <li><b>Passaporte (Fluxo 3)</b>: header X-Refresh-Passport presente →
+     *       consome o passport emitido pelo /public, renova sessão e encripta com
+     *       o sharedSecret do canal DH original (não o appSessionSecret).</li>
+     *   <li><b>Legado JWT</b>: Authorization: Bearer JWT →
+     *       renova sessão e encripta com appSessionSecret.</li>
+     * </ul>
+     */
     @PostMapping("/refresh")
     public ResponseEntity<?> refresh(
-            @RequestHeader(value = "Authorization", required = false) String authHeader
+            @RequestHeader(value = "X-Refresh-Passport", required = false) String refreshPassport,
+            @RequestHeader(value = "Authorization",       required = false) String authHeader
     ) {
-        log.info("[CONTROLLER - REFRESH] Solicitação de renovação.");
+        log.info("[CONTROLLER - REFRESH] Solicitação de renovação recebida.");
 
+        // ── MODO 1: PASSAPORTE EMITIDO PELO FLUXO 3 ───────────────────────
+        if (refreshPassport != null && !refreshPassport.isBlank()) {
+            try {
+                log.info("[CONTROLLER - REFRESH] Modo passaporte. Passport: {}...",
+                        refreshPassport.substring(0, Math.min(8, refreshPassport.length())));
+
+                Map<String, String> encrypted = service.handleRefreshWithPassport(refreshPassport);
+
+                log.info("[CONTROLLER - REFRESH] ✅ Sessão renovada via passaporte.");
+                return ResponseEntity.ok(encrypted);
+
+            } catch (RuntimeException e) {
+                log.warn("[CONTROLLER - REFRESH] Passaporte inválido: {}", e.getMessage());
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(Map.of("error", e.getMessage()));
+            }
+        }
+
+        // ── MODO 2: JWT LEGADO ─────────────────────────────────────────────
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("error", "Token de autorização ausente ou inválido."));
+                    .body(Map.of("error", "X-Refresh-Passport ou Authorization Bearer obrigatório."));
         }
 
         try {
@@ -190,13 +220,13 @@ public class SessionController {
             Map<String, String> encrypted = responseQueries.sanitizeAndEncrypt(activeSession, appSessionSecret);
             ResponseCookie cookie = service.generateSessionCookie(encrypted.get("ciphertext"));
 
-            log.info("[CONTROLLER - REFRESH] Sessão {} renovada.", activeSession.getId());
+            log.info("[CONTROLLER - REFRESH] Sessão {} renovada via JWT.", activeSession.getId());
             return ResponseEntity.ok()
                     .header(HttpHeaders.SET_COOKIE, cookie.toString())
                     .body(encrypted);
 
         } catch (Exception e) {
-            log.error("[CONTROLLER - REFRESH] Falha: {}", e.getMessage());
+            log.error("[CONTROLLER - REFRESH] Falha JWT: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "Sessão inválida ou expirada."));
         }

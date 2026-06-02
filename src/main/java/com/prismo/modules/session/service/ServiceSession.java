@@ -71,58 +71,94 @@ public class ServiceSession {
     }
 
     // =========================================================================
-    // FLUXO 3: FREEZE REFRESH  (POST /public + X-Freezer-Token + payload cifrado)
+    // FLUXO 3: EMISSÃO DO PASSAPORTE PARA /refresh  (POST /public + X-Freezer-Token)
     // =========================================================================
 
     /**
-     * Renovação de sessão via Freeze Token — delegação interna ao contrato de /refresh.
+     * Fluxo 3 do /public — análogo ao Fluxo 2 que emite anonymousToken para /anonymous.
      * <p>
-     * Análogo ao Fluxo 2 que emite um passaporte para /anonymous, aqui o freeze token
-     * serve como credencial de longa-duração que autoriza a renovação da sessão sem
-     * novo handshake DH. O token é mantido em paralelo no dhContexts (não consumido).
-     * <p>
-     * Etapas:
-     * <ol>
-     *   <li>Recupera o sharedSecret via X-Freezer-Token (dhContexts — leitura, sem remoção)</li>
-     *   <li>Decifra o payload AES-256-GCM para extrair { id_prospect, ts }</li>
-     *   <li>Delega ao contrato de /refresh: busca sessão ativa, atualiza lastAccessAt e keyUpdate</li>
-     *   <li>Persiste o estado renovado no banco</li>
-     *   <li>Retorna a sessão re-encriptada com o MESMO sharedSecret do freeze token</li>
-     * </ol>
+     * Recebe o payload cifrado, recupera o sharedSecret via X-Freezer-Token,
+     * valida a sessão e emite um refreshPassport. O frontend usa esse passaporte
+     * para chamar /refresh diretamente — sem expor o freeze token novamente.
+     * O freeze token é mantido em paralelo no dhContexts (não consumido).
      *
      * @param freezeToken O token de congelamento recebido via header X-Freezer-Token
      * @param iv          IV Base64 do payload cifrado pelo cliente
      * @param ciphertext  Ciphertext Base64 do payload cifrado pelo cliente
-     * @return Sessão renovada e re-encriptada com o sharedSecret do freeze token
+     * @return Map com { refreshPassport, status, minWait }
      */
-    public Map<String, String> handleFreezeRefresh(String freezeToken, String iv, String ciphertext) {
-        log.info("[FREEZE REFRESH] Iniciando renovação via freeze token: {}...",
+    public Map<String, Object> handleFreezePassportIssue(String freezeToken, String iv, String ciphertext) {
+        log.info("[FREEZE PASSPORT] Emissão de passaporte via freeze token: {}...",
                 freezeToken.substring(0, Math.min(8, freezeToken.length())));
 
-        // 1. Recupera o sharedSecret — usa .get() para manter o contexto ativo em paralelo
+        // 1. Recupera o sharedSecret — .get() mantém o contexto ativo em paralelo
         String sharedSecret = getSecretByToken(freezeToken);
         if (sharedSecret == null) {
-            log.warn("[FREEZE REFRESH] Freeze token inválido ou contexto expirado: {}",
+            log.warn("[FREEZE PASSPORT] Freeze token inválido ou contexto expirado: {}",
                     freezeToken.substring(0, Math.min(8, freezeToken.length())));
             throw new RuntimeException("Freeze token inválido — sessão expirada ou servidor reiniciado.");
         }
 
-        // 2. Decifra o payload de identificação enviado pelo cliente
-        String json = responseQueries.decryptPayload(iv, ciphertext, sharedSecret);
-        log.debug("[FREEZE REFRESH] Payload de identificação decifrado com sucesso.");
+        // 2. Decifra o payload → extrai id_prospect
+        String json      = responseQueries.decryptPayload(iv, ciphertext, sharedSecret);
+        UUID   sessionId = extractIdProspect(json);
 
-        // 3. Extrai o id_prospect do JSON decifrado
-        UUID sessionId = extractIdProspect(json);
-
-        // 4. Delega ao contrato de /refresh:
-        //    busca sessão ativa, atualiza timestamp de acesso e rotaciona keyUpdate
+        // 3. Valida que a sessão existe e está ativa (sem modificar nada ainda)
         Session session = getActiveSession(sessionId);
+        log.info("[FREEZE PASSPORT] Sessão {} validada. Emitindo passaporte de renovação.", session.getId());
+
+        // 4. Gera o refreshPassport e vincula freeze token + sessionId nos mapas do CryptoHelper
+        String refreshPassport = cryptoHelper.generateRefreshPassport(freezeToken, session.getId().toString());
+
+        return Map.of(
+            "refreshPassport", refreshPassport,
+            "status",          "refresh_authorized",
+            "minWait",         1.5
+        );
+    }
+
+    // =========================================================================
+    // RENOVAÇÃO VIA PASSAPORTE  (POST /refresh + X-Refresh-Passport)
+    // =========================================================================
+
+    /**
+     * Consome o refreshPassport emitido pelo Fluxo 3 e executa a renovação completa da sessão.
+     * <p>
+     * O passport vincula internamente o freeze token (para recuperar o sharedSecret)
+     * e o sessionId. Após consumo o passport é descartado (single-use).
+     *
+     * @param refreshPassport Token de passaporte emitido pelo Fluxo 3 do /public
+     * @return Sessão renovada, cifrada com o sharedSecret do freeze token original
+     */
+    public Map<String, String> handleRefreshWithPassport(String refreshPassport) {
+        log.info("[REFRESH PASSPORT] Consumindo passaporte: {}...",
+                refreshPassport.substring(0, Math.min(8, refreshPassport.length())));
+
+        // 1. Consome o passport — single-use, remove dos mapas
+        String[] ctx = cryptoHelper.consumeRefreshPassport(refreshPassport);
+        if (ctx == null) {
+            throw new RuntimeException("Passaporte de renovação inválido ou já utilizado.");
+        }
+        String freezeToken    = ctx[0];
+        String sessionIdStr   = ctx[1];
+
+        // 2. Recupera o sharedSecret via freeze token (ainda vivo em paralelo)
+        String sharedSecret = getSecretByToken(freezeToken);
+        if (sharedSecret == null) {
+            throw new RuntimeException("Contexto criptográfico expirado — freeze token não encontrado.");
+        }
+
+        // 3. Carrega sessão ativa
+        UUID    sessionId = UUID.fromString(sessionIdStr);
+        Session session   = getActiveSession(sessionId);
+
+        // 4. Atualiza lastAccessAt e rotaciona keyUpdate (renovação completa)
         session.setLastAccessAt(LocalDateTime.now());
         session.setKeyUpdate(UUID.randomUUID());
         repository.save(session);
-        log.info("[FREEZE REFRESH] ✅ Sessão {} renovada. lastAccessAt e keyUpdate atualizados.", session.getId());
+        log.info("[REFRESH PASSPORT] ✅ Sessão {} renovada via passaporte.", session.getId());
 
-        // 5. Retorna a sessão re-encriptada com o sharedSecret do freeze token
+        // 5. Encripta com o sharedSecret do canal DH original (não o appSessionSecret)
         return responseQueries.sanitizeAndEncrypt(session, sharedSecret);
     }
 

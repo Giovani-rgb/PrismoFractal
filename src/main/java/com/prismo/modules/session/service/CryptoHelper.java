@@ -27,6 +27,12 @@ public class CryptoHelper {
 
     // Mapa que retém os dados matemáticos do handshake ativos durante a negociação na rota /public
     private final Map<String, DiffieHellmanModel> dhContexts = new ConcurrentHashMap<>();
+
+    // Mapa: refreshPassport → freezeToken  (usado para recuperar o sharedSecret no /refresh)
+    private final Map<String, String> refreshPassportToFreeze = new ConcurrentHashMap<>();
+
+    // Mapa: refreshPassport → sessionId (UUID como String)
+    private final Map<String, String> refreshPassportToSession = new ConcurrentHashMap<>();
     
     // Grupo 14 do RFC 3526 (2048-bit MODP Group)
     private static final BigInteger P_DH = new BigInteger(
@@ -205,6 +211,43 @@ public class CryptoHelper {
         );
     }
 
+
+    // =========================================================================
+    // FLUXO 3: PASSAPORTE PARA /refresh
+    // =========================================================================
+
+    /**
+     * Gera um token de passaporte que autoriza o frontend a chamar /refresh.
+     * Análogo ao anonymousToken do Fluxo 2 — guarda a relação passport → freezeToken + sessionId.
+     * O freeze token é mantido vivo em dhContexts (não removido).
+     *
+     * @param freezeToken O freeze token do cliente (mantido em paralelo)
+     * @param sessionId   O id_prospect da sessão validada
+     * @return O refreshPassport UUID como String
+     */
+    public String generateRefreshPassport(String freezeToken, String sessionId) {
+        String passport = java.util.UUID.randomUUID().toString();
+        refreshPassportToFreeze.put(passport, freezeToken);
+        refreshPassportToSession.put(passport, sessionId);
+        log.info("[FREEZE REFRESH] 🎫 Passaporte de renovação emitido: {}...", passport.substring(0, 8));
+        return passport;
+    }
+
+    /**
+     * Consome o refreshPassport (remove dos mapas) e retorna { freezeToken, sessionId }.
+     * Retorna null se o passaporte for inválido ou já consumido.
+     */
+    public String[] consumeRefreshPassport(String passport) {
+        String freezeToken = refreshPassportToFreeze.remove(passport);
+        String sessionId   = refreshPassportToSession.remove(passport);
+        if (freezeToken == null || sessionId == null) {
+            log.warn("[FREEZE REFRESH] Passaporte inválido ou já consumido: {}",
+                    passport.substring(0, Math.min(8, passport.length())));
+            return null;
+        }
+        log.info("[FREEZE REFRESH] ✅ Passaporte consumido. Sessão: {}...", sessionId.substring(0, 8));
+        return new String[]{ freezeToken, sessionId };
+    }
 
     // =========================================================================
     // UTILS & LIMPEZA: Consumidos pelas rotas seguintes (/anonymous, etc.)
