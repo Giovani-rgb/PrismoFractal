@@ -58,7 +58,8 @@ public class SessionController {
             @RequestHeader(value = "X-Freezer-Token",  required = false) String freezerTokenHeader
     ) {
         try {
-            // ── FLUXO 3: EMISSÃO DO PASSAPORTE PARA /refresh ───────────────
+            // ── FLUXO 3: EMISSÃO DO PASSAPORTE PARA /refresh .// Nesta parte do fluxo 3 deveriamos recuperar o sharedSecret através do método "getSecretByToken" parecido com a rota "/anonymous", ele ja foi usado antes e tras a Shared Secret relacionado ao freezeToken. Ao decifra o payload deve-se identificar a intensao do fluxo operacional e se existe algum cookie com a id_prospect ou texto json válido. Pra então emitir o novo token passaporte e criptografar a resposta pro cliente ───────────────
+
             final String resolvedFreezeToken = (clientPayload != null && clientPayload.containsKey("freezeToken"))
                     ? clientPayload.get("freezeToken")
                     : freezerTokenHeader;

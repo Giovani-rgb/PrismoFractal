@@ -44,6 +44,21 @@ public class AntiBotManager {
             "status", "established"
         );
     }
+    
+
+    public Map<String, Object> generateRefreshToken() {
+        String token = UUID.randomUUID().toString();
+
+        AntiBotMetadata meta = new AntiBotMetadata(token, AntiBotTokenType.REFRESH_PASS);
+        antiBotTokens.put(token, meta);
+
+        return Map.of(
+            "refresh_Pass", token,
+            "minWait", meta.getMinWaitSeconds(),
+            "status", "Passporte_Autorizado"
+        );
+    }
+
 
     /**
      * Emite um token de congelamento (freezer) de longa duração para finalizar o fluxo.
@@ -61,6 +76,7 @@ public class AntiBotManager {
             "status", "frozen"
         );
     }
+    
 
     /**
      * Consome e valida qualquer token genérico passando as validações anti-bot.
@@ -84,6 +100,24 @@ public class AntiBotManager {
             Thread.sleep(internalDelay); 
         } catch (InterruptedException ignored) {}
     }
+
+        /**
+     * Valida um token de Freezer ativo sem removê-lo do mapa central (mantém vivo).
+     * Garante conformidade de tipo e checa se o tempo limite já expirou.
+     */
+    public AntiBotMetadata peekActiveFreezerToken(String token) {
+        AntiBotMetadata meta = antiBotTokens.get(token); // .get() mantém o token no ConcurrentHashMap
+
+        if (meta == null || meta.getType() != AntiBotTokenType.ANONYMOUS_FREEZER) {
+            throw new RuntimeException("Freeze token inválido, já utilizado ou inexistente.");
+        }
+        if (meta.isExpired()) {
+            throw new RuntimeException("O limite de tempo do freeze token (" + AntiBotTokenType.ANONYMOUS_FREEZER.getTtlSeconds() + "s) foi excedido.");
+        }
+        
+        return meta;
+    }
+
 
     public void removeToken(String token) {
         antiBotTokens.remove(token);

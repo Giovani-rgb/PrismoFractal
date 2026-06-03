@@ -179,7 +179,7 @@ public class CryptoHelper {
         // 4. OBJETO DE NAVEGAÇÃO: Define as diretrizes e caminhos liberados após o congelamento
         Map<String, Object> navigationPolicy = Map.of(
             "targetState", "AUTHORIZED_FREEZER",
-            "allowedRoutes", java.util.List.of("/dashboard", "/secure/*"),
+            "allowedRoutes", java.util.List.of("/", "/privacity", "/terms"),
             "originToken", currentAnonymousToken,
             "freezerToken", freezerToken,
             "minWaitSeconds", freezerData.get("minWait")
@@ -196,7 +196,7 @@ public class CryptoHelper {
 
         // 6. OBJETO DE INTERAÇÃO: Regras de acoplamento com outros objetos/entidades do sistema
         Map<String, Object> interactionSpecs = Map.of(
-            "allowedModules", java.util.List.of("session", "core-modules"),
+            "allowedModules", java.util.List.of("session", "oAuth_modules"),
             "allowCrossModuleCalls", true,
             "signatureValidated", true,
             "timestamp", java.time.Instant.now().toString()
@@ -212,42 +212,64 @@ public class CryptoHelper {
     }
 
 
-    // =========================================================================
+//=================================================================================
     // FLUXO 3: PASSAPORTE PARA /refresh
     // =========================================================================
 
     /**
      * Gera um token de passaporte que autoriza o frontend a chamar /refresh.
-     * Análogo ao anonymousToken do Fluxo 2 — guarda a relação passport → freezeToken + sessionId.
-     * O freeze token é mantido vivo em dhContexts (não removido).
+     * Utiliza o freezeToken existente para obter o sharedSecret de forma passiva.
      *
-     * @param freezeToken O freeze token do cliente (mantido em paralelo)
+     * @param freezeToken O freeze token do cliente (mantido vivo no AntiBotManager e no dhContexts)
      * @param sessionId   O id_prospect da sessão validada
-     * @return O refreshPassport UUID como String
+     * @return Um Map contendo os dados do passaporte e o sharedSecret para criptografia
      */
-    public String generateRefreshPassport(String freezeToken, String sessionId) {
-        String passport = java.util.UUID.randomUUID().toString();
-        refreshPassportToFreeze.put(passport, freezeToken);
-        refreshPassportToSession.put(passport, sessionId);
-        log.info("[FREEZE REFRESH] 🎫 Passaporte de renovação emitido: {}...", passport.substring(0, 8));
-        return passport;
+    public Map<String, Object> generateRefreshPassport(String freezeToken, String sessionId) {
+        log.info("[FREEZE REFRESH] 🎫 Consultando contexto e emitindo passaporte de renovação.");
+
+        // 1. BARREIRA ANTI-BOT: Garante que o freezeToken ainda é válido e está no tempo correto (sem removê-lo)
+        antiBotManager.peekActiveFreezerToken(freezeToken);
+
+        // 2. VASCULHA O SHARED SECRET: Usa o seu utilitário existente (que faz .get() e não altera o dhContexts)
+        String sharedSecretHex = this.getSecretByToken(freezeToken);
+        if (sharedSecretHex == null) {
+            log.error("[FREEZE REFRESH] Falha crítica: Shared Secret não localizado para o freezeToken: {}", freezeToken.substring(0, 8));
+            throw new RuntimeException("Sessão criptográfica inconsistente para renovação.");
+        }
+
+        // 3. EMITE O REFRESH TOKEN CENTRALIZADO:
+        // Cria o novo passaporte registrando as regras de minWait e TTL no AntiBotManager
+        Map<String, Object> antiBotResponse = antiBotManager.generateRefreshToken();
+        String passport = (String) antiBotResponse.get("refresh_Pass");
+
+        log.info("[FREEZE REFRESH] 🎫 Passaporte {} gerado com sucesso. Contextos originais preservados.", passport.substring(0, 8));
+
+        // 4. Retorna diretamente os dados do passaporte (refresh_Pass, minWait, status)
+        //    O sharedSecret já está disponível no chamador via getSecretByToken()
+        return antiBotResponse;
     }
 
-    /**
-     * Consome o refreshPassport (remove dos mapas) e retorna { freezeToken, sessionId }.
-     * Retorna null se o passaporte for inválido ou já consumido.
-     */
-    public String[] consumeRefreshPassport(String passport) {
-        String freezeToken = refreshPassportToFreeze.remove(passport);
-        String sessionId   = refreshPassportToSession.remove(passport);
-        if (freezeToken == null || sessionId == null) {
-            log.warn("[FREEZE REFRESH] Passaporte inválido ou já consumido: {}",
-                    passport.substring(0, Math.min(8, passport.length())));
-            return null;
-        }
-        log.info("[FREEZE REFRESH] ✅ Passaporte consumido. Sessão: {}...", sessionId.substring(0, 8));
-        return new String[]{ freezeToken, sessionId };
+
+
+/**
+ * Consome o passaporte de refresh usando a estrutura unificada do dhContexts e do Manager.
+ */
+public String consumeRefreshPassport(String passport) {
+    log.info("[FREEZE REFRESH] 🛡️ Validando e consumindo passaporte de renovação.");
+
+    // 1. Valida e destrói o token do radar anti-bot
+    antiBotManager.consumeAndValidateToken(passport, AntiBotTokenType.REFRESH_PASS);
+
+    // 2. Remove apenas o ponteiro do passaporte do mapa DH (o freezeToken original continua lá)
+    DiffieHellmanModel ctx = dhContexts.remove(passport);
+    if (ctx == null) {
+        log.warn("[FREEZE REFRESH] Passaporte anti-bot válido, mas sem contexto criptográfico associado.");
+        return null;
     }
+
+    log.info("[FREEZE REFRESH] ✅ Passaporte consumido com sucesso via unificação de contexto.");
+    return passport; 
+}
 
     // =========================================================================
     // UTILS & LIMPEZA: Consumidos pelas rotas seguintes (/anonymous, etc.)

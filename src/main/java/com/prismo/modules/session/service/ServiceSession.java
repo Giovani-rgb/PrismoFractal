@@ -73,40 +73,52 @@ public class ServiceSession {
     // =========================================================================
     // FLUXO 3: EMISSÃO DO PASSAPORTE PARA /refresh  (POST /public + X-Freezer-Token)
     // =========================================================================
-
-    /**
-     * Fluxo 3 do /public — análogo ao Fluxo 2 que emite anonymousToken para /anonymous.
-     */
     public Map<String, Object> handleFreezePassportIssue(String freezeToken, String iv, String ciphertext) {
-        log.controllers("Fluxo Freeze Passport: Iniciando emissão de passaporte via Freeze Token (Prefixo: {}...).",
+        log.info("Fluxo Freeze Passport: Iniciando emissão de passaporte via Freeze Token (Prefixo: {}...).",
                 freezeToken.substring(0, Math.min(8, freezeToken.length())));
 
-        // 1. Recupera o sharedSecret — .get() mantém o contexto ativo em paralelo
-        log.queries("Buscando segredo criptográfico compartilhado para reidratação de canal.");
-        String sharedSecret = getSecretByToken(freezeToken);
+        // 1. Recupera o sharedSecret — .get() mantém o contexto ativo em paralelo no dhContexts
+        log.debug("Buscando segredo criptográfico compartilhado para reidratação de canal.");
+        String sharedSecret = this.getSecretByToken(freezeToken);
         if (sharedSecret == null) {
-            log.warning("Fluxo Freeze Passport abortado: Contexto criptográfico expirou ou o token informado é inválido.");
+            log.error("Fluxo Freeze Passport abortado: Contexto criptográfico expirou ou o token informado é inválido.");
             throw new RuntimeException("Freeze token inválido — sessão expirada ou servidor reiniciado.");
         }
 
-        // 2. Decifra o payload → extrai id_prospect
-        String json      = responseQueries.decryptPayload(iv, ciphertext, sharedSecret);
-        UUID   sessionId = extractIdProspect(json);
+        // 2. Decifra o payload enviado pelo frontend usando o seu método existente
+        String json = responseQueries.decryptPayload(iv, ciphertext, sharedSecret);
+        UUID sessionId = extractIdProspect(json);
 
-        // 3. Valida que a sessão existe e está ativa (sem modificar nada ainda)
-        log.queries("Validando integridade da sessão [{}] mapeada a partir do payload decifrado.", sessionId);
+        // 3. Valida se a sessão do usuário existe e está ativa
+        log.debug("Validando integridade da sessão [{}] mapeada a partir do payload decifrado.", sessionId);
         Session session = getActiveSession(sessionId);
-        log.controllers("Fluxo Freeze Passport: Sessão verificada e ativa. Encaminhando geração de token de uso único.");
+        log.info("Fluxo Freeze Passport: Sessão verificada e ativa. Encaminhando geração de token.");
 
-        // 4. Gera o refreshPassport e vincula freeze token + sessionId nos mapas do CryptoHelper
-        String refreshPassport = cryptoHelper.generateRefreshPassport(freezeToken, session.getId().toString());
+        // 4. GERA O TOKEN VIA CRYPTOHELPER:
+        // Retorna diretamente { refresh_Pass, minWait, status } sem wrapper
+        Map<String, Object> passportData = cryptoHelper.generateRefreshPassport(freezeToken, session.getId().toString());
 
+        // 5. PREPARA OS DADOS EXTRAS DO ANTIBOT:
+        // Montamos um mapa com as chaves que o front precisa ler após decifrar
+        Map<String, Object> antiBotPayload = Map.of(
+            "refreshPassport", passportData.get("refresh_Pass"), // O UUID do passaporte do manager
+            "status",          passportData.get("status"),       // "Passporte_Autorizado"
+            "minWait",         passportData.get("minWait")       // Tempo dinâmico vindo do Enum
+        );
+
+        // 6. CRIPTOGRAFIA USANDO SEU REPOSITÓRIO (ResponseQueries):
+        // Chamamos o seu método original 'sanitizeAndEncrypt'. Ele vai colocar os dados da 'session'
+        // na raiz e mesclar os dados do AntiBot ('antiBotPayload') perfeitamente no mesmo bloco AES!
+        log.info("Cifrando dados combinados da sessão e do AntiBot usando o sharedSecret.");
+        Map<String, String> encryptedResponse = responseQueries.sanitizeAndEncrypt(session, antiBotPayload, sharedSecret);
+
+        // 7. Retorna o pacote blindado com as chaves "iv" e "ciphertext" em Base64 geradas pelo seu repositório
         return Map.of(
-            "refreshPassport", refreshPassport,
-            "status",          "refresh_authorized",
-            "minWait",         1.5
+            "iv",         encryptedResponse.get("iv"),
+            "ciphertext", encryptedResponse.get("ciphertext")
         );
     }
+
 
     // =========================================================================
     // RENOVAÇÃO VIA PASSAPORTE  (POST /refresh + X-Refresh-Passport)

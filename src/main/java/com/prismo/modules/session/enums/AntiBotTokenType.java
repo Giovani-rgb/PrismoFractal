@@ -13,11 +13,12 @@ public enum AntiBotTokenType {
     REENTRY_WINDOW(20, 1.50, 0.30),
 
     /**
-     * Token de passagem de uso único emitido na saída de /public e consumido em /anonymous.
+     * Tokens de passagem de uso único emitido na saída de /public e consumido em /anonymous, /refresh.
      * Expira estritamente em 15 segundos.
      */
     ANONYMOUS_PASS(15, 2.60, 0.30),
-
+    
+    REFRESH_PASS(15, 2.55, 0.30),
     /**
      * Token de finalização da rota "/anonymous".
      * Congela (freeza) a rota por 20 minutos (1200 segundos).

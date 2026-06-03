@@ -2,7 +2,6 @@ import { Injectable, inject } from '@angular/core';
 
 import { SessionPipelineOrchestrator } from '../services-workers/SessionPipelineOrchestrator';
 import { SessionContext } from '../context/session.context';
-import { SessionService } from '../services/session.service';
 
 import { SessionTag, PrismoSessionState, Session, SessionPermition } from '../models/session.model';
 import { SessionWorkerPipe } from '../pipes/session-worker.pipe';
@@ -11,34 +10,40 @@ import { environment } from '../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
 export class SessionRehydrationExecution {
-
-  private readonly STORAGE_KEY    = environment.nameSessionKey;
+  private readonly STORAGE_KEY = environment.nameSessionKey;
   private readonly VAULT_PASSWORD = environment.vaultPassword;
 
   private orchestrator = inject(SessionPipelineOrchestrator);
-  private context      = inject(SessionContext);
+  private context = inject(SessionContext);
   private cacheService = inject(SessionCacheService);
-  private service      = inject(SessionService);
 
   private readonly LOG_BADGE = 'font-weight: bold; padding: 2px 4px; border-radius: 3px;';
 
   async execute(): Promise<void> {
-    console.log(`%c[Esteira] 🔄 REHYDRATE pipeline acionado. Analisando integridade...`,
-      'color: #a5b4fc; font-style: italic;');
+    console.log(
+      `%c[Esteira] 🔄 REHYDRATE pipeline acionado. Analisando integridade...`,
+      'color: #a5b4fc; font-style: italic;',
+    );
 
     const state: PrismoSessionState = this.context.currentState;
 
+    // Curto-circuito caso a sessão já esteja ativa na RAM
     if (state.tag === SessionTag.REST && state.data) {
-      console.log(`%c[Curto-Circuito] 🟢 Estado ativo em 'REST' com payload íntegro na RAM.`,
-        'color: #10b981; font-weight: bold;');
+      console.log(
+        `%c[Curto-Circuito] 🟢 Estado ativo em 'REST' com payload íntegro na RAM.`,
+        'color: #10b981; font-weight: bold;',
+      );
       return;
     }
 
-    this.context.setOperation(SessionTag.REHYDRATE);
-    console.log(`%c[Contrato] 🔍 Tag fixada: "${this.context.currentState.tag}"`, 'color: #38bdf8;');
+    // [Contrato] Se não está em REST, fixa em PUBLIC até concluir a rota pública externa
+    this.context.setOperation(SessionTag.PUBLIC);
+    console.log(
+      `%c[Contrato] 🔍 Tag fixada: "${this.context.currentState.tag}"`,
+      'color: #38bdf8;',
+    );
 
     try {
-
       // ─────────────────────────────────────────────────────────────────
       // STAGE 1: INGESTÃO BRUTA
       // ─────────────────────────────────────────────────────────────────
@@ -59,11 +64,14 @@ export class SessionRehydrationExecution {
         if (!vaultData?.sharedSecret) {
           throw new Error('Quebra de Conexão: sharedSecret indisponível no cache e no contexto.');
         }
-        activeSecret      = vaultData.sharedSecret;
+        activeSecret = vaultData.sharedSecret;
         cachedPermissions = vaultData.permissions;
 
-        console.log(`%c VAULT %c sharedSecret + permissions (freezerToken incluso) recuperados.`,
-          `background: #6d28d9; color: #fff; ${this.LOG_BADGE}`, 'color: #c084fc;');
+        console.log(
+          `%c VAULT %c sharedSecret + permissions recuperados.`,
+          `background: #6d28d9; color: #fff; ${this.LOG_BADGE}`,
+          'color: #c084fc;',
+        );
       }
 
       // ─────────────────────────────────────────────────────────────────
@@ -75,48 +83,50 @@ export class SessionRehydrationExecution {
       }
 
       // ─────────────────────────────────────────────────────────────────
-      // STAGE 4: SEPARAÇÃO DE ESCOPOS
+      // STAGE 4: SEPARAÇÃO DE ESCOPOS (Hidratação da RAM)
       // ─────────────────────────────────────────────────────────────────
-      const { interactions, navigation, rwu, status, ...cleanSession } = workerResult.session as any;
+      const { interactions, navigation, rwu, status, ...cleanSession } =
+        workerResult.session as any;
       const dataScope: Session = cleanSession;
       this.context.setSession(dataScope);
 
       const permitionScope: SessionPermition = {
         ...(interactions ? { interactions } : {}),
-        ...(navigation   ? { navigation }   : {}),
-        ...(rwu          ? { rwu }          : {}),
-        ...(status       ? { status }       : {}),
+        ...(navigation ? { navigation } : {}),
+        ...(rwu ? { rwu } : {}),
+        ...(status ? { status } : {}),
       };
       this.context.updatePermitions(permitionScope);
-      this.context.setOperation(SessionTag.REHYDRATE);
 
       console.log(
-        `%c[Stage 4] ✅ Contexto reconstruído localmente. Tag: "${this.context.currentState.tag}"`,
-        'color: #fbbf24; font-weight: bold;'
+        `%c[Stage 4] ✅ Contexto reconstruído localmente na RAM.`,
+        'color: #fbbf24; font-weight: bold;',
       );
 
       // ─────────────────────────────────────────────────────────────────
-      // STAGE 5: RENOVAÇÃO VIA REDE (100% ORQUESTRADO)
+      // STAGE 5: RENOVAÇÃO VIA REDE (Orquestrado)
       // ─────────────────────────────────────────────────────────────────
-
-      // O freezeToken vive em permissions.navigation.freezerToken
       const freezeToken: string | undefined =
-        this.context.currentState.data?.permition?.['navigation']?.['freezerToken']
-        ?? (cachedPermissions as any)?.['navigation']?.['freezerToken'];
+        this.context.currentState.data?.permition?.['navigation']?.['freezerToken'] ??
+        (cachedPermissions as any)?.['navigation']?.['freezerToken'];
 
       if (!freezeToken) {
-        console.warn(`%c[Stage 5] ⚠️ freezerToken ausente nas permissions — renovação de rede pulada.`,
-          'color: #f59e0b');
-      } else {
-        console.log(
-          `%c STAGE 5 %c Despachando payload criptográfico via Orquestrador...`,
-          `background: #0891b2; color: #fff; ${this.LOG_BADGE}`, 'color: #67e8f9;'
+        console.warn(
+          `%c[Stage 5] ⚠️ freezerToken ausente nas permissions — renovação de rede pulada.`,
+          'color: #f59e0b',
         );
+      } else {
         try {
+          // Aqui basicamente tem de garantir o estado PUBLIC devido ao stage 4 definir para a tag para REST
+         this.context.setOperation(SessionTag.PUBLIC);
+          // Mantém o estado previsível e delega a chamada de rede externa
           await this.rehydrateViaFreezeToken(activeSecret, dataScope.id_prospect);
         } catch (netErr) {
-          console.warn(`%c[Stage 5] ⚠️ Renovação de rede falhou. Operando com dados locais.`,
-            'color: #f59e0b', netErr);
+          console.warn(
+            `%c[Stage 5] ⚠️ Renovação de rede falhou. Operando com dados locais baseados na RAM.`,
+            'color: #f59e0b',
+            netErr,
+          );
         }
       }
 
@@ -126,9 +136,8 @@ export class SessionRehydrationExecution {
       this.context.setOperation(SessionTag.REST);
       console.log(
         `%c[Prismo] 🚀 Esteira REHYDRATE concluída. Contexto selado em: "${this.context.currentState.tag}"`,
-        'color: #10b981; font-weight: bold;'
+        'color: #10b981; font-weight: bold;',
       );
-
     } catch (error) {
       console.error(`%c[Rehydrate Error] ❌ Falha na esteira:`, 'color: #ef4444', error);
       throw error;
@@ -137,59 +146,45 @@ export class SessionRehydrationExecution {
 
   /**
    * RENOVAÇÃO VIA FREEZE TOKEN
-   * Encripta a identificação, aciona o Orquestrador e atualiza os storages persistentes.
+   * Envia a intenção e a identificação criptografada para o servidor.
    */
-  private async rehydrateViaFreezeToken(
-    sharedSecret: string,
-    idProspect: string
-  ): Promise<void> {
-
-    // 1. Encripta payload de identificação com sharedSecret (Web Worker)
-    const idPayload = { id_prospect: idProspect, ts: Date.now() };
-    const encryptedId = await SessionWorkerPipe.encryptJson(idPayload, sharedSecret);
-    console.log(`%c[Rehydrate Net] 🔐 Payload de identificação encriptado via AES-256.`, 'color: #38bdf8;');
-
-    // 2. MUTAÇÃO TEMPORÁRIA DA TAG
-    const publicTag = (SessionTag as any).PUBLIC ?? (SessionTag as any).FLOW;
-    this.context.setOperation(publicTag);
-    console.log(`%c[Orquestrador] 🔀 Operação elevada para: "${this.context.currentState.tag}"`, 'color: #e0f2fe;');
-
-    // 3. MONTAGEM DO PAYLOAD STRIP (Apenas a cifra do AES-256)
-    const payloadContrato = { 
-      iv: encryptedId.iv, 
-      ciphertext: encryptedId.ciphertext 
+  private async rehydrateViaFreezeToken(sharedSecret: string, idProspect: string): Promise<void> {
+    // 1. Encripta payload de identificação inserindo a intenção (operação) desejada pelo servidor em "/public"
+    const idPayload = {
+      id_prospect: idProspect,
+      intent: 'SESSION_REHYDRATION',
+      ts: Date.now(),
     };
-    
-    let freshPayload: any;
-    
+
+    const encryptedId = await SessionWorkerPipe.encryptJson(idPayload, sharedSecret);
+    console.log(
+      `%c[Rehydrate Net] 🔐 Payload de identificação + intenção encriptados via Web Worker.`,
+      'color: #38bdf8;',
+    );
+
+    // 2. Montagem do contrato para o Orquestrador (Apenas a cifra AES-256)
+    const payloadContrato = {
+      iv: encryptedId.iv,
+      ciphertext: encryptedId.ciphertext,
+    };
+
     try {
-      freshPayload = await this.orchestrator.executeAssignment(payloadContrato);
-      console.log(`%c[Rehydrate Net] ✅ Resposta processada pelo contrato do Orquestrador.`, 'color: #10b981;');
+      // Executa a chamada. Como mapeado, o estado permanece PUBLIC até o retorno do servidor.
+      const freshPayload = await this.orchestrator.executeAssignment(payloadContrato);
+
+      // [Ajuste] Print temporário solicitado para auditoria (visto que o servidor ainda não responde criptografado)
+      console.log(
+        `%c[Rehydrate Net] 🛰️ Payload bruto recebido do Servidor (Não Criptografado):`,
+        'color: #a855f7; font-weight: bold;',
+        freshPayload,
+      );
     } finally {
+      // 3. Transição de estado pós-chamada da rota pública: Próximo passo é aguardar o tempo do token na rota "/refresh"
       this.context.setOperation(SessionTag.REHYDRATE);
-      console.log(`%c[Orquestrador] 🔙 Operação restaurada para: "${this.context.currentState.tag}"`, 'color: #e0f2fe;');
-    }
-
-    // 4. ATUALIZAÇÃO CONCILIADA DA RAM (Apenas metadados de controle)
-    // Descriptografamos a resposta fresca apenas para extrair os novos tempos de expiração e permissões renovadas do servidor
-    const freshResult = await SessionWorkerPipe.process(freshPayload, sharedSecret);
-    if (freshResult.session) {
-      const { interactions, navigation, rwu, status } = freshResult.session as any;
-      
-      // Atualiza apenas a camada de controle/tokens (onde vivem expirações e o freezerToken renovado)
-      // Seus dados de usuário ('dataScope' injetados no Stage 4) permanecem intactos e protegidos!
-      this.context.updatePermitions({ interactions, navigation, rwu, status });
-    }
-
-    // 5. PERSISTÊNCIA DO PAYLOAD ATUALIZADO
-    this.service.saveToStorage(freshPayload);
-    
-    // 6. SELAGEM DO VAULT (Agora com a RAM em perfeita sincronia com os carimbos do servidor)
-    try {
-      this.cacheService.saveCurrentContextToVault(this.VAULT_PASSWORD);
-      console.log(`%c[Rehydrate Net] 🔒 Vault físico sincronizado com os novos carimbos de sessão.`, 'color: #818cf8;');
-    } catch (vaultErr) {
-      console.warn(`%c[Rehydrate Net] ⚠️ Falha ao selar o Vault físico.`, 'color: #f59e0b', vaultErr);
+      console.log(
+        `%c[Orquestrador] 🔙 Ciclo de rede resolvido. Mutando tag para: "${this.context.currentState.tag}"`,
+        'color: #e0f2fe;',
+      );
     }
   }
 }
