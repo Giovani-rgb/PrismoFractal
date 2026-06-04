@@ -1,12 +1,20 @@
 import { Injectable, inject } from '@angular/core';
-
 import { SessionPipelineOrchestrator } from '../services-workers/SessionPipelineOrchestrator';
 import { SessionContext } from '../context/session.context';
-
-import { SessionTag, PrismoSessionState, Session, SessionPermition } from '../models/session.model';
+import { SessionTag, PrismoSessionState, Session, SessionPermition, DHResult } from '../models/session.model';
 import { SessionWorkerPipe } from '../pipes/session-worker.pipe';
 import { SessionCacheService } from '../private/session-cache.service';
 import { environment } from '../../environments/environment';
+
+// Estilos padronizados para logs elegantes no DevTools (Alinhado com a esteira de Create)
+const LOG_STYLES = {
+  crypto: 'background: #3b82f6; color: #fff; padding: 2px 6px; border-radius: 3px; font-weight: bold;',
+  antibot: 'background: #f59e0b; color: #fff; padding: 2px 6px; border-radius: 3px; font-weight: bold;',
+  success: 'background: #10b981; color: #fff; padding: 2px 6px; border-radius: 3px; font-weight: bold;',
+  payload: 'background: #8b5cf6; color: #fff; padding: 2px 6px; border-radius: 3px; font-weight: bold;',
+  storage: 'background: #0d9488; color: #fff; padding: 2px 6px; border-radius: 3px; font-weight: bold;',
+  error: 'background: #ef4444; color: #fff; padding: 2px 6px; border-radius: 3px; font-weight: bold;'
+};
 
 @Injectable({ providedIn: 'root' })
 export class SessionRehydrationExecution {
@@ -17,12 +25,10 @@ export class SessionRehydrationExecution {
   private context = inject(SessionContext);
   private cacheService = inject(SessionCacheService);
 
-  private readonly LOG_BADGE = 'font-weight: bold; padding: 2px 4px; border-radius: 3px;';
-
   async execute(): Promise<void> {
     console.log(
-      `%c[Esteira] 🔄 REHYDRATE pipeline acionado. Analisando integridade...`,
-      'color: #a5b4fc; font-style: italic;',
+      `%c🔄 [REHYDRATE]%c Pipeline de reidratação acionado. Analisando integridade...`,
+      LOG_STYLES.payload, ''
     );
 
     const state: PrismoSessionState = this.context.currentState;
@@ -30,17 +36,17 @@ export class SessionRehydrationExecution {
     // Curto-circuito caso a sessão já esteja ativa na RAM
     if (state.tag === SessionTag.REST && state.data) {
       console.log(
-        `%c[Curto-Circuito] 🟢 Estado ativo em 'REST' com payload íntegro na RAM.`,
-        'color: #10b981; font-weight: bold;',
+        `%c🟢 [SHORT-CIRCUIT]%c Estado ativo em 'REST' com payload íntegro na RAM.`,
+        LOG_STYLES.success, ''
       );
       return;
     }
 
-    // [Contrato] Se não está em REST, fixa em PUBLIC até concluir a rota pública externa
+    // Se não está em REST, fixa em PUBLIC até concluir a rota pública externa
     this.context.setOperation(SessionTag.PUBLIC);
     console.log(
-      `%c[Contrato] 🔍 Tag fixada: "${this.context.currentState.tag}"`,
-      'color: #38bdf8;',
+      `%c🛡️ [ANTI-BOT]%c Tag de operação fixada preventivamente em: "${this.context.currentState.tag}"`,
+      LOG_STYLES.antibot, ''
     );
 
     try {
@@ -54,10 +60,12 @@ export class SessionRehydrationExecution {
       const encrypted = JSON.parse(rawData);
 
       // ─────────────────────────────────────────────────────────────────
-      // STAGE 2: RESOLUÇÃO DO SEGREDO (RAM ou Vault)
+      // STAGE 2: RESOLUÇÃO DO SEGREDO (metadata[1] ou Vault)
       // ─────────────────────────────────────────────────────────────────
-      let activeSecret: string | undefined = this.context.currentState.dhResult?.sharedSecret;
+      // Recupera o dhResult da posição [1] da tupla metadata caso já exista na RAM
+      let activeSecret: string | undefined = state.metadata ? state.metadata[1]?.sharedSecret : undefined;
       let cachedPermissions: SessionPermition | null = null;
+      let vaultDhResult: DHResult | null = null;
 
       if (!activeSecret) {
         const vaultData = this.cacheService.recoverVaultData(this.VAULT_PASSWORD);
@@ -66,11 +74,11 @@ export class SessionRehydrationExecution {
         }
         activeSecret = vaultData.sharedSecret;
         cachedPermissions = vaultData.permissions;
+        vaultDhResult = vaultData.dhResult;
 
         console.log(
-          `%c VAULT %c sharedSecret + permissions recuperados.`,
-          `background: #6d28d9; color: #fff; ${this.LOG_BADGE}`,
-          'color: #c084fc;',
+          `%c🔒 [VAULT]%c sharedSecret + permissions recuperados com sucesso da custódia local.`,
+          LOG_STYLES.storage, ''
         );
       }
 
@@ -85,8 +93,13 @@ export class SessionRehydrationExecution {
       // ─────────────────────────────────────────────────────────────────
       // STAGE 4: SEPARAÇÃO DE ESCOPOS (Hidratação da RAM)
       // ─────────────────────────────────────────────────────────────────
-      const { interactions, navigation, rwu, status, ...cleanSession } =
-        workerResult.session as any;
+      // Se viemos do Vault, reinjeta as chaves matemáticas de volta na tupla metadata do contexto
+      if (vaultDhResult) {
+        console.log(`%c🔑 [CRYPTO]%c Hidratando a tupla metadata na RAM com o contrato recuperado do Vault.`, LOG_STYLES.crypto, '');
+        this.context.setDHResult(vaultDhResult); 
+      }
+
+      const { interactions, navigation, rwu, status, ...cleanSession } = workerResult.session as any;
       const dataScope: Session = cleanSession;
       this.context.setSession(dataScope);
 
@@ -99,8 +112,8 @@ export class SessionRehydrationExecution {
       this.context.updatePermitions(permitionScope);
 
       console.log(
-        `%c[Stage 4] ✅ Contexto reconstruído localmente na RAM.`,
-        'color: #fbbf24; font-weight: bold;',
+        `%c🧠 [CONTEXT]%c Estrutura de Session e Permitions reconstruídas e unificadas na RAM.`,
+        LOG_STYLES.success, ''
       );
 
       // ─────────────────────────────────────────────────────────────────
@@ -111,21 +124,19 @@ export class SessionRehydrationExecution {
         (cachedPermissions as any)?.['navigation']?.['freezerToken'];
 
       if (!freezeToken) {
-        console.warn(
-          `%c[Stage 5] ⚠️ freezerToken ausente nas permissions — renovação de rede pulada.`,
-          'color: #f59e0b',
+        console.log(
+          `%c🛡️ [ANTI-BOT]%c freezerToken ausente nas permissions — renovação de rede pulada.`,
+          LOG_STYLES.antibot, ''
         );
       } else {
         try {
-          // Aqui basicamente tem de garantir o estado PUBLIC devido ao stage 4 definir para a tag para REST
-         this.context.setOperation(SessionTag.PUBLIC);
-          // Mantém o estado previsível e delega a chamada de rede externa
+          // Força o estado PUBLIC para blindar a chamada de rede à rota externa
+          this.context.setOperation(SessionTag.PUBLIC);
           await this.rehydrateViaFreezeToken(activeSecret, dataScope.id_prospect);
         } catch (netErr) {
-          console.warn(
-            `%c[Stage 5] ⚠️ Renovação de rede falhou. Operando com dados locais baseados na RAM.`,
-            'color: #f59e0b',
-            netErr,
+          console.log(
+            `%c❌ [CRITICAL ERROR]%c Renovação de rede falhou. Operando em fallback com dados locais da RAM.`,
+            LOG_STYLES.error, ''
           );
         }
       }
@@ -135,21 +146,20 @@ export class SessionRehydrationExecution {
       // ─────────────────────────────────────────────────────────────────
       this.context.setOperation(SessionTag.REST);
       console.log(
-        `%c[Prismo] 🚀 Esteira REHYDRATE concluída. Contexto selado em: "${this.context.currentState.tag}"`,
-        'color: #10b981; font-weight: bold;',
+        `%c🚀 [SUCCESS]%c Esteira REHYDRATE finalizada. Contexto selado em estável: "${this.context.currentState.tag}"`,
+        LOG_STYLES.success, ''
       );
     } catch (error) {
-      console.error(`%c[Rehydrate Error] ❌ Falha na esteira:`, 'color: #ef4444', error);
+      const errorMsg = (error as any).message || 'Erro desconhecido';
+      console.log(`%c❌ [CRITICAL ERROR]%c Bloqueio na esteira REHYDRATE: ${errorMsg}`, LOG_STYLES.error, '');
       throw error;
     }
   }
 
   /**
    * RENOVAÇÃO VIA FREEZE TOKEN
-   * Envia a intenção e a identificação criptografada para o servidor.
    */
   private async rehydrateViaFreezeToken(sharedSecret: string, idProspect: string): Promise<void> {
-    // 1. Encripta payload de identificação inserindo a intenção (operação) desejada pelo servidor em "/public"
     const idPayload = {
       id_prospect: idProspect,
       intent: 'SESSION_REHYDRATION',
@@ -158,32 +168,54 @@ export class SessionRehydrationExecution {
 
     const encryptedId = await SessionWorkerPipe.encryptJson(idPayload, sharedSecret);
     console.log(
-      `%c[Rehydrate Net] 🔐 Payload de identificação + intenção encriptados via Web Worker.`,
-      'color: #38bdf8;',
+      `%c🔑 [CRYPTO]%c Payload de intenção e identificação cifrados via Web Worker.`,
+      LOG_STYLES.crypto, ''
     );
 
-    // 2. Montagem do contrato para o Orquestrador (Apenas a cifra AES-256)
     const payloadContrato = {
       iv: encryptedId.iv,
       ciphertext: encryptedId.ciphertext,
     };
 
     try {
-      // Executa a chamada. Como mapeado, o estado permanece PUBLIC até o retorno do servidor.
       const freshPayload = await this.orchestrator.executeAssignment(payloadContrato);
+      const freshResult = await SessionWorkerPipe.decryptJson(freshPayload, sharedSecret);
+      const antiBotData = freshResult.session ? freshResult.session : freshResult;
 
-      // [Ajuste] Print temporário solicitado para auditoria (visto que o servidor ainda não responde criptografado)
       console.log(
-        `%c[Rehydrate Net] 🛰️ Payload bruto recebido do Servidor (Não Criptografado):`,
-        'color: #a855f7; font-weight: bold;',
-        freshPayload,
+        `%c🛰️ [NETWORK]%c Resposta do servidor recebida e decifrada com sucesso.`,
+        LOG_STYLES.success, ''
       );
+
+      if (antiBotData && antiBotData.refreshPassport) {
+        this.context.updatePermitions({
+          status: antiBotData.status,
+          navigation: {
+            ...((this.context.currentState.data?.permition as any)?.['navigation'] || {}),
+            refreshPassport: antiBotData.refreshPassport, 
+            minWaitSeconds: antiBotData.minWait
+          }
+        });
+
+        console.log(
+          `%c🎫 [PASSPORT]%c Novo passaporte de tráfego injetado nas permissions: ${antiBotData.refreshPassport.substring(0, 8)}...`,
+          LOG_STYLES.success, ''
+        );
+      } else {
+        throw new Error('Falha de leitura: refreshPassport ausente no payload decifrado.');
+      }
+
+    } catch (decryptErr) {
+      console.log(
+        `%c❌ [CRITICAL ERROR]%c Falha crítica ao processar ou descriptografar resposta do servidor.`,
+        LOG_STYLES.error, ''
+      );
+      throw decryptErr; 
     } finally {
-      // 3. Transição de estado pós-chamada da rota pública: Próximo passo é aguardar o tempo do token na rota "/refresh"
       this.context.setOperation(SessionTag.REHYDRATE);
       console.log(
-        `%c[Orquestrador] 🔙 Ciclo de rede resolvido. Mutando tag para: "${this.context.currentState.tag}"`,
-        'color: #e0f2fe;',
+        `%c🔄 [REHYDRATE]%c Ciclo de rede resolvido. Retornando tag da esteira para: "${this.context.currentState.tag}"`,
+        LOG_STYLES.payload, ''
       );
     }
   }

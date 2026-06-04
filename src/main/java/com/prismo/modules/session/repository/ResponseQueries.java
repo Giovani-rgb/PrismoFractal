@@ -31,6 +31,32 @@ public class ResponseQueries {
         return sanitizeAndEncrypt(session, null, secretHex);
     }
 
+
+        /**
+     * Cifra um payload genérico (como metadados do Anti-Bot) em um bloco AES-256-GCM
+     * utilizando o sharedSecret do canal.
+     *
+     * @param payload   O mapa de dados que será convertido em JSON e cifrado
+     * @param secretHex O Shared Secret em Hexadecimal para derivar a chave
+     * @return Um mapa contendo "iv" e "ciphertext" em Base64
+     */
+    public Map<String, String> encryptGenericPayload(Map<String, Object> payload, String secretHex) {
+        try {
+            log.info("[RESPONSE QUERIES] Cifrando payload operacional puro (Anti-Bot).");
+            
+            // Converte o mapa puro do Anti-Bot em String JSON usando o seu 'mapper' existente
+            String jsonPayload = mapper.writeValueAsString(payload);
+            
+            // Reutiliza o seu helper interno privado que faz o SHA-256, gera o IV e cifra!
+            return encryptJson(jsonPayload, secretHex);
+
+        } catch (Exception e) {
+            log.error("[RESPONSE QUERIES] Falha ao cifrar payload genérico.", e);
+            throw new RuntimeException("Erro ao processar e criptografar resposta operacional", e);
+        }
+    }
+
+
     /**
      * Sanitiza os dados da sessão e acopla escopos dinâmicos de segurança antes
      * de cifrar tudo em um único bloco AES-256-GCM.

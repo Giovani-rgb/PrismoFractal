@@ -148,7 +148,7 @@ export class Landing implements AfterViewInit, OnDestroy {
       { t: 'I', s: mobile ? 44 : tablet ? 60 : 72, x: mobile ? -22  : -37  },
       { t: 'S', s: mobile ? 37 : tablet ? 51 : 61, x: mobile ?  12  :  19  },
       { t: 'M', s: mobile ? 42 : tablet ? 58 : 70, x: mobile ?  52  :  82  },
-      { t: 'O', s: mobile ? 50 : tablet ? 67 : 81, x: mobile ?  90  : 152  },
+      { t: 'O', s: mobile ? 48 : tablet ? 66 : 71, x: mobile ?  92  : 156  },
     ];
 
     this.ctx.textAlign    = 'center';

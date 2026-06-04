@@ -45,6 +45,18 @@ addEventListener('message', async ({ data }) => {
       return;
     }
 
+    // ─── NOVO FLUXO ADICIONADO ───────────────────────────────────────────
+    // FASE 5: Decifragem Genérica - Descriptografa qualquer JSON sem regras de sessão
+    if (action === 'DECRYPT_JSON') {
+      const { raw, secret } = data;
+      const decryptedObject = await decryptData(raw, secret);
+      
+      // Retorna sucesso e injeta o objeto descriptografado na propriedade 'decrypted'
+      postMessage({ success: true, decrypted: decryptedObject });
+      return;
+    }
+    // ─────────────────────────────────────────────────────────────────────
+
     throw new Error(`Ação criptográfica desconhecida na esteira: ${action}`);
 
   } catch (error: any) {

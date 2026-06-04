@@ -25,26 +25,26 @@ import java.util.UUID;
 @Transactional
 public class ServiceSession {
 
-    private final SessionRepository  repository;
+    private final SessionRepository repository;
     private final GeoLocationService geoLocationService;
-    private final JwtService         jwtService;
-    private final CryptoHelper       cryptoHelper;
-    private final ResponseQueries    responseQueries;
-    private final AppLogger          log; // Injeção do nosso Logger customizado
-    private final ObjectMapper       objectMapper = new ObjectMapper();
+    private final JwtService jwtService;
+    private final CryptoHelper cryptoHelper;
+    private final ResponseQueries responseQueries;
+    private final AppLogger log; // Injeção do nosso Logger customizado
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public ServiceSession(SessionRepository repository,
-                          GeoLocationService geoLocationService,
-                          JwtService jwtService,
-                          CryptoHelper cryptoHelper,
-                          ResponseQueries responseQueries,
-                          AppLogger log) {
-        this.repository      = repository;
+            GeoLocationService geoLocationService,
+            JwtService jwtService,
+            CryptoHelper cryptoHelper,
+            ResponseQueries responseQueries,
+            AppLogger log) {
+        this.repository = repository;
         this.geoLocationService = geoLocationService;
-        this.jwtService      = jwtService;
-        this.cryptoHelper    = cryptoHelper;
+        this.jwtService = jwtService;
+        this.cryptoHelper = cryptoHelper;
         this.responseQueries = responseQueries;
-        this.log             = log;
+        this.log = log;
     }
 
     // =========================================================================
@@ -55,7 +55,8 @@ public class ServiceSession {
         log.controllers("Handshake Fase 1: Inicializando contexto seguro para nova conexão de entrada.");
         String windowToken = UUID.randomUUID().toString();
         Map<String, Object> publicPayload = cryptoHelper.initiatePublicContext(windowToken);
-        log.controllers("Handshake Fase 1: Parâmetros Diffie-Hellman consolidados para o Window Token: {}", windowToken);
+        log.controllers("Handshake Fase 1: Parâmetros Diffie-Hellman consolidados para o Window Token: {}",
+                windowToken);
         return publicPayload;
     }
 
@@ -66,79 +67,80 @@ public class ServiceSession {
         @SuppressWarnings("unchecked")
         Map<String, Object> anonymousPass = (Map<String, Object>) publicHandshakeResult.get("anonymousPass");
 
-        log.controllers("Handshake Fase 2: Chave secreta finalizada. Passaporte para a rota /anonymous emitido com sucesso.");
+        log.controllers(
+                "Handshake Fase 2: Chave secreta finalizada. Passaporte para a rota /anonymous emitido com sucesso.");
         return anonymousPass;
     }
 
     // =========================================================================
-    // FLUXO 3: EMISSÃO DO PASSAPORTE PARA /refresh  (POST /public + X-Freezer-Token)
+    // FLUXO 3: EMISSÃO DO PASSAPORTE PARA /refresh (POST /public + X-Freezer-Token)
     // =========================================================================
-    public Map<String, Object> handleFreezePassportIssue(String freezeToken, String iv, String ciphertext) {
-        log.info("Fluxo Freeze Passport: Iniciando emissão de passaporte via Freeze Token (Prefixo: {}...).",
-                freezeToken.substring(0, Math.min(8, freezeToken.length())));
+public Map<String, Object> handleFreezePassportIssue(String freezeToken, String iv, String ciphertext) {
+    log.queries("Fluxo Freeze Passport: Iniciando emissão de passaporte via Freeze Token (Prefixo: {}...).",
+            freezeToken.substring(0, Math.min(8, freezeToken.length())));
 
-        // 1. Recupera o sharedSecret — .get() mantém o contexto ativo em paralelo no dhContexts
-        log.debug("Buscando segredo criptográfico compartilhado para reidratação de canal.");
-        String sharedSecret = this.getSecretByToken(freezeToken);
-        if (sharedSecret == null) {
-            log.error("Fluxo Freeze Passport abortado: Contexto criptográfico expirou ou o token informado é inválido.");
-            throw new RuntimeException("Freeze token inválido — sessão expirada ou servidor reiniciado.");
-        }
-
-        // 2. Decifra o payload enviado pelo frontend usando o seu método existente
-        String json = responseQueries.decryptPayload(iv, ciphertext, sharedSecret);
-        UUID sessionId = extractIdProspect(json);
-
-        // 3. Valida se a sessão do usuário existe e está ativa
-        log.debug("Validando integridade da sessão [{}] mapeada a partir do payload decifrado.", sessionId);
-        Session session = getActiveSession(sessionId);
-        log.info("Fluxo Freeze Passport: Sessão verificada e ativa. Encaminhando geração de token.");
-
-        // 4. GERA O TOKEN VIA CRYPTOHELPER:
-        // Retorna diretamente { refresh_Pass, minWait, status } sem wrapper
-        Map<String, Object> passportData = cryptoHelper.generateRefreshPassport(freezeToken, session.getId().toString());
-
-        // 5. PREPARA OS DADOS EXTRAS DO ANTIBOT:
-        // Montamos um mapa com as chaves que o front precisa ler após decifrar
-        Map<String, Object> antiBotPayload = Map.of(
-            "refreshPassport", passportData.get("refresh_Pass"), // O UUID do passaporte do manager
-            "status",          passportData.get("status"),       // "Passporte_Autorizado"
-            "minWait",         passportData.get("minWait")       // Tempo dinâmico vindo do Enum
-        );
-
-        // 6. CRIPTOGRAFIA USANDO SEU REPOSITÓRIO (ResponseQueries):
-        // Chamamos o seu método original 'sanitizeAndEncrypt'. Ele vai colocar os dados da 'session'
-        // na raiz e mesclar os dados do AntiBot ('antiBotPayload') perfeitamente no mesmo bloco AES!
-        log.info("Cifrando dados combinados da sessão e do AntiBot usando o sharedSecret.");
-        Map<String, String> encryptedResponse = responseQueries.sanitizeAndEncrypt(session, antiBotPayload, sharedSecret);
-
-        // 7. Retorna o pacote blindado com as chaves "iv" e "ciphertext" em Base64 geradas pelo seu repositório
-        return Map.of(
-            "iv",         encryptedResponse.get("iv"),
-            "ciphertext", encryptedResponse.get("ciphertext")
-        );
+    // 1. Recupera o sharedSecret — .get() mantém o contexto ativo em paralelo no dhContexts
+    log.queries("Buscando segredo criptográfico compartilhado para reidratação de canal.");
+    String sharedSecret = this.getSecretByToken(freezeToken);
+    if (sharedSecret == null) {
+        log.error("Fluxo Freeze Passport abortado: Contexto criptográfico expirou ou o token informado é inválido.");
+        throw new RuntimeException("Freeze token inválido — sessão expirada ou servidor reiniciado.");
     }
 
+    // 2. Decifra o payload enviado pelo frontend usando o seu método existente
+    String json = responseQueries.decryptPayload(iv, ciphertext, sharedSecret);
+    UUID sessionId = extractIdProspect(json);
+
+    // 3. Valida se a sessão do usuário existe e está ativa
+    log.queries("Validando integridade da sessão [{}] mapeada a partir do payload decifrado.", sessionId);
+    Session session = getActiveSession(sessionId);
+    log.queries("Fluxo Freeze Passport: Sessão verificada e ativa. Encaminhando geração de token.");
+
+    // 4. GERA O TOKEN VIA CRYPTOHELPER:
+    // O método retorna diretamente o mapa de resposta do AntiBotManager e vincula no dhContexts
+    Map<String, Object> passportData = cryptoHelper.generateRefreshPassport(freezeToken, session.getId().toString());
+
+    // 5. PREPARA OS DADOS EXTRAS DO ANTIBOT:
+    // Montamos o payload contendo UNICAMENTE o que o AntiBotManager determinou
+    Map<String, Object> antiBotPayload = Map.of(
+            "refreshPassport", passportData.get("refresh_Pass"), 
+            "status",          passportData.get("status"), 
+            "minWait",         passportData.get("minWait") 
+    );
+
+    // 6. CRIPTOGRAFIA LIMPA E ISOLADA:
+    // Usamos o novo método para cifrar APENAS o payload do AntiBotManager, sem misturar a Session
+    log.queries("Cifrando payload do AntiBot isoladamente usando o sharedSecret.");
+    Map<String, String> encryptedResponse = responseQueries.encryptGenericPayload(antiBotPayload, sharedSecret);
+
+    // 7. Retorna o pacote blindado com as chaves "iv" e "ciphertext" em Base64
+    return Map.of(
+            "iv",         encryptedResponse.get("iv"),
+            "ciphertext", encryptedResponse.get("ciphertext")
+    );
+}
+
 
     // =========================================================================
-    // RENOVAÇÃO VIA PASSAPORTE  (POST /refresh + X-Refresh-Passport)
+    // RENOVAÇÃO VIA PASSAPORTE (POST /refresh + X-Refresh-Passport)
     // =========================================================================
 
     /**
-     * Consome o refreshPassport emitido pelo Fluxo 3 e executa a renovação completa da sessão.
+     * Consome o refreshPassport emitido pelo Fluxo 3 e executa a renovação completa
+     * da sessão.
      */
     public Map<String, String> handleRefreshWithPassport(String refreshPassport) {
         log.controllers("Consumindo passaporte de uso único (Single-use Passport: {}...).",
                 refreshPassport.substring(0, Math.min(8, refreshPassport.length())));
 
         // 1. Consome o passport — single-use, remove dos mapas
-        String[] ctx = cryptoHelper.consumeRefreshPassport(refreshPassport);
+        String ctx = cryptoHelper.consumeRefreshPassport(refreshPassport);
         if (ctx == null) {
             log.warning("Falha de consumo: Passaporte de renovação já foi utilizado ou é inválido.");
             throw new RuntimeException("Passaporte de renovação inválido ou já utilizado.");
         }
-        String freezeToken    = ctx[0];
-        String sessionIdStr   = ctx[1];
+        String freezeToken = ctx;
+        String sessionIdStr = ctx;
 
         // 2. Recupera o sharedSecret via freeze token (ainda vivo em paralelo)
         log.queries("Recuperando segredo de canal persistido em paralelo associado ao Freeze Token.");
@@ -149,8 +151,8 @@ public class ServiceSession {
         }
 
         // 3. Carrega sessão ativa
-        UUID    sessionId = UUID.fromString(sessionIdStr);
-        Session session   = getActiveSession(sessionId);
+        UUID sessionId = UUID.fromString(sessionIdStr);
+        Session session = getActiveSession(sessionId);
 
         // 4. Atualiza lastAccessAt e rotaciona keyUpdate (renovação completa)
         session.setLastAccessAt(LocalDateTime.now());
@@ -186,8 +188,8 @@ public class ServiceSession {
     public Session createAnonymous(String ipAddress, String userAgent) {
         log.queries("Instanciando registro bruto de sessão anônima no banco de dados.");
 
-        UUID   sessionId = UUID.randomUUID();
-        String jwt       = jwtService.generateToken(sessionId.toString(), 30L * 24 * 60 * 60 * 1000);
+        UUID sessionId = UUID.randomUUID();
+        String jwt = jwtService.generateToken(sessionId.toString(), 30L * 24 * 60 * 60 * 1000);
 
         Session session = new Session();
         session.setId(sessionId);

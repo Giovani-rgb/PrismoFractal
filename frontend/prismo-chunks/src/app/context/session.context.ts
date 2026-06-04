@@ -7,14 +7,13 @@ export class SessionContext {
 
   private readonly _state = new BehaviorSubject<PrismoSessionState>({
     data: null,
+    metadata: [null, null], // [dhContext, dhResult] após data
     tag: SessionTag.VOID, 
     is_ready: false,
     is_loading: false,
     is_online: navigator.onLine,
     schedule_requests: !navigator.onLine,
-    use_pwa_styles: window.matchMedia('(display-mode: standalone)').matches,
-    dhContext: null, // Metadados iniciais nulos
-    dhResult: null   // Segredo simétrico inicial nulo
+    use_pwa_styles: window.matchMedia('(display-mode: standalone)').matches
   });
 
   public readonly state$ = this._state.asObservable();
@@ -38,24 +37,30 @@ export class SessionContext {
   }
 
   /**
-   * CRIPTO: Estaciona os parâmetros primordiais e a chave pública B no estado
+   * CRIPTO: Estaciona os parâmetros primordiais e a chave pública B na posição 0 da tupla metadata
    */
   setDHContext(context: DiffieHellmanModel): void {
     const current = this._state.getValue();
+    // Recupera o dhResult atual da posição 1 para não perdê-lo
+    const currentResult = current.metadata ? current.metadata[1] : null;
+
     this._state.next({
       ...current,
-      dhContext: context
+      metadata: [context, currentResult]
     });
   }
 
   /**
-   * CRIPTO: Consolida o resultado do Handshake contendo a Shared Secret efêmera
+   * CRIPTO: Consolida o resultado do Handshake contendo a Shared Secret efêmera na posição 1 da tupla metadata
    */
   setDHResult(result: DHResult): void {
     const current = this._state.getValue();
+    // Recupera o dhContext atual da posição 0 para não perdê-lo
+    const currentContext = current.metadata ? current.metadata[0] : null;
+
     this._state.next({
       ...current,
-      dhResult: result
+      metadata: [currentContext, result]
     });
   }
 
@@ -114,14 +119,13 @@ export class SessionContext {
   clear(): void {
     this._state.next({
       data: null,
+      metadata: [null, null],
       tag: SessionTag.VOID,
       is_ready: false,
       is_loading: false,
       is_online: navigator.onLine,
       schedule_requests: !navigator.onLine,
-      use_pwa_styles: window.matchMedia('(display-mode: standalone)').matches,
-      dhContext: null,
-      dhResult: null
+      use_pwa_styles: window.matchMedia('(display-mode: standalone)').matches
     });
   }
 
@@ -134,6 +138,3 @@ export class SessionContext {
     return this._state.getValue().data?.permition || null;
   }
 }
-
-
-

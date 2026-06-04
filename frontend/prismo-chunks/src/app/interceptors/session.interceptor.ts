@@ -44,11 +44,11 @@ export const recoveryInterceptor: HttpInterceptorFn = (req, next) => {
  */
 export const transactionInterceptor: HttpInterceptorFn = (req, next) => {
   const context = inject(SessionContext);
-  const token = context.currentState.data?.token;
+  const keyToken = context.currentState.data?.keyUpdate;
 
   return next(req.clone({
     setHeaders: {
-      'Authorization': `Bearer ${token}`,
+      'Authorization': `Bearer ${keyToken}`,
     },
   }));
 };

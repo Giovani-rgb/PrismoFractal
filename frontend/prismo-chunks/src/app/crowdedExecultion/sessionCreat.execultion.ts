@@ -39,14 +39,14 @@ export class SessionCreationExecution {
       // 2. STAGE 1: Worker calcula as chaves locais do cliente (Retorna o DiffieHellmanModel)
       const dhContext = await SessionWorkerPipe.stage_dh({ p: dhParams.p, g: dhParams.g });
 
-      // Injeta os metadados do estágio inicial no contexto do Prismo
+      // Injeta os metadados do estágio inicial no contexto do Prismo (posição [0] do metadata)
       this.context.setDHContext(dhContext);
       console.log(`%c🔑 [CRYPTO]%c Chaves locais salvas no contexto (B calculado).`, LOG_STYLES.crypto, '');
 
       // 3. STAGE 2: Worker finaliza a matemática combinando a chave A com o contexto (Retorna o DHResult)
       const dhResult = await SessionWorkerPipe.calculateDH(dhParams.A, dhContext);
 
-      // Injeta o resultado final com a Shared Secret resolvida no contexto do Prismo
+      // Injeta o resultado final com a Shared Secret resolvida no contexto do Prismo (posição [1] do metadata)
       this.context.setDHResult(dhResult);
       console.log(`%c🔑 [CRYPTO]%c Shared Secret salva no contexto com sucesso.`, LOG_STYLES.crypto, '');
 
@@ -87,15 +87,21 @@ export class SessionCreationExecution {
 
       // 7. Ingestão da Sessão Cifrada em /anonymous
       const raw = await this.orchestrator.executeAssignment();
-      console.log(`%c📦 [PAYLOAD]%c Resposta cifrada recebida da rota /anonymous.`, LOG_STYLES.payload, '');
 
       // Persistência imediata do payload criptografado no sessionStorage via SessionService
       this.sessionService.saveToStorage(raw);
       console.log(`%c💾 [STORAGE]%c Payload criptografado persistido via SessionService.`, LOG_STYLES.storage, '');
 
-      // 8. STAGE 3: Processamento e Descriptografia Dinâmica com a chave resolvida no Stage 2
+      // 8. STAGE 3: Processamento e Descriptografia Dinâmica com a chave resolvida recuperada de metadata
       console.log(`%c🔑 [CRYPTO]%c Descriptografando payload utilizando a Shared Secret efêmera...`, LOG_STYLES.crypto, '');
-      let decryptedFlat = await SessionWorkerPipe.process(raw, dhResult.sharedSecret!);
+      
+      // Captura segura do dhResult diretamente do array metadata do contexto atualizado
+      const currentDHResult = this.context.currentState.metadata ? this.context.currentState.metadata[1] : null;
+      if (!currentDHResult?.sharedSecret) {
+        throw new Error('Chave Shared Secret ausente no metadata do contexto para descriptografia.');
+      }
+
+      let decryptedFlat = await SessionWorkerPipe.process(raw, currentDHResult.sharedSecret);
 
       // Garantia de tipo: Se o pipe retornou string JSON por engano, forçamos o parse para objeto
       if (typeof decryptedFlat === 'string') {
@@ -105,11 +111,8 @@ export class SessionCreationExecution {
       // Tratamento de Envelope: Se vier encapsulado em .data ou .session, extrai a raiz de dados
       const payloadRoot = decryptedFlat?.data || decryptedFlat?.session || decryptedFlat;
 
-      // Log preventivo para depuração rápida no console do DevTools se as propriedades sumirem
-      console.log('%c🔍 [CRYPTO-DEBUG]%c Estrutura decifrada identificada:', LOG_STYLES.payload, '', Object.keys(payloadRoot || {}));
-
       // --- MAPEAMENTO STRIP E CONVENIENTE PARA A GAVETA 'PERMITION' ---
-      // Capturamos tanto a versão snake_case quanto camelCase para evitar quebras com o DTO do Java
+      // 'token' foi removido da desestruturação para evitar erro de compilação com a interface Session
       const {
         id_prospect, idProspect,
         refs,
@@ -119,7 +122,6 @@ export class SessionCreationExecution {
         createdAt,
         expiresAt,
         lastAccessAt,
-        token,
         ...extraObjects
       } = payloadRoot;
 
@@ -132,7 +134,6 @@ export class SessionCreationExecution {
         createdAt,
         expiresAt,
         lastAccessAt,
-        token,
         permition: Object.keys(extraObjects).length > 0 ? extraObjects : undefined
       };
 

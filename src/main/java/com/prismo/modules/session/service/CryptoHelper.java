@@ -28,11 +28,6 @@ public class CryptoHelper {
     // Mapa que retém os dados matemáticos do handshake ativos durante a negociação na rota /public
     private final Map<String, DiffieHellmanModel> dhContexts = new ConcurrentHashMap<>();
 
-    // Mapa: refreshPassport → freezeToken  (usado para recuperar o sharedSecret no /refresh)
-    private final Map<String, String> refreshPassportToFreeze = new ConcurrentHashMap<>();
-
-    // Mapa: refreshPassport → sessionId (UUID como String)
-    private final Map<String, String> refreshPassportToSession = new ConcurrentHashMap<>();
     
     // Grupo 14 do RFC 3526 (2048-bit MODP Group)
     private static final BigInteger P_DH = new BigInteger(
@@ -216,38 +211,33 @@ public class CryptoHelper {
     // FLUXO 3: PASSAPORTE PARA /refresh
     // =========================================================================
 
-    /**
-     * Gera um token de passaporte que autoriza o frontend a chamar /refresh.
-     * Utiliza o freezeToken existente para obter o sharedSecret de forma passiva.
-     *
-     * @param freezeToken O freeze token do cliente (mantido vivo no AntiBotManager e no dhContexts)
-     * @param sessionId   O id_prospect da sessão validada
-     * @return Um Map contendo os dados do passaporte e o sharedSecret para criptografia
-     */
     public Map<String, Object> generateRefreshPassport(String freezeToken, String sessionId) {
         log.info("[FREEZE REFRESH] 🎫 Consultando contexto e emitindo passaporte de renovação.");
 
-        // 1. BARREIRA ANTI-BOT: Garante que o freezeToken ainda é válido e está no tempo correto (sem removê-lo)
+        // 1. BARREIRA ANTI-BOT: Garante que o freezeToken está ativo e íntegro (sem removê-lo)
         antiBotManager.peekActiveFreezerToken(freezeToken);
 
-        // 2. VASCULHA O SHARED SECRET: Usa o seu utilitário existente (que faz .get() e não altera o dhContexts)
-        String sharedSecretHex = this.getSecretByToken(freezeToken);
-        if (sharedSecretHex == null) {
-            log.error("[FREEZE REFRESH] Falha crítica: Shared Secret não localizado para o freezeToken: {}", freezeToken.substring(0, 8));
+        // 2. RECUPERA O CONTEXTO ATUAL: Acessa o modelo matemático existente para vinculá-lo ao novo passaporte
+        DiffieHellmanModel ctx = dhContexts.get(freezeToken);
+        if (ctx == null) {
+            log.error("[FREEZE REFRESH] Falha crítica: Contexto matemático não localizado para o freezeToken.");
             throw new RuntimeException("Sessão criptográfica inconsistente para renovação.");
         }
 
         // 3. EMITE O REFRESH TOKEN CENTRALIZADO:
-        // Cria o novo passaporte registrando as regras de minWait e TTL no AntiBotManager
         Map<String, Object> antiBotResponse = antiBotManager.generateRefreshToken();
         String passport = (String) antiBotResponse.get("refresh_Pass");
 
-        log.info("[FREEZE REFRESH] 🎫 Passaporte {} gerado com sucesso. Contextos originais preservados.", passport.substring(0, 8));
+        // 4. ATRELA O CONTEXTO AO NOVO PASSPORT: 
+        // Adiciona o novo token ao mapa compartilhado, permitindo que a rota /refresh use o mesmo canal criptográfico
+        dhContexts.put(passport, ctx);
 
-        // 4. Retorna diretamente os dados do passaporte (refresh_Pass, minWait, status)
-        //    O sharedSecret já está disponível no chamador via getSecretByToken()
+        log.info("[FREEZE REFRESH] 🎫 Passaporte {} gerado e adicionado ao dhContexts com sucesso.", passport.substring(0, 8));
+
+        // 5. Retorna puramente o mapa do manager (contém refresh_Pass, minWait e status)
         return antiBotResponse;
     }
+
 
 
 

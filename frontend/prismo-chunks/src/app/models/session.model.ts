@@ -28,7 +28,6 @@ export interface Session {
   createdAt: number;
   expiresAt: number;
   lastAccessAt: number;
-  token?: string;
   permition?: SessionPermition; // Nova gaveta de segurança
 }
 
@@ -37,6 +36,11 @@ export interface Session {
  */
 export interface PrismoSessionState {
   data: Session | null;
+  // Metadados Estritamente em Runtime para a Esteira de Handshake DH
+  // Posição 0: dhContext (Guarda p, g, _b e B após o Stage 1)
+  // Posição 1: dhResult (Guarda o resultado final / Shared Secret após o Stage 2)
+  metadata?: [dhContext?: DiffieHellmanModel | null, dhResult?: DHResult | null];
+  
   tag: SessionTag;
 
   // Tags de Controle (Booleans)
@@ -45,10 +49,6 @@ export interface PrismoSessionState {
   is_online: boolean;
   schedule_requests: boolean; // Modo Agendamento (Offline)
   use_pwa_styles: boolean;    // Modo Fullscreen (340px)
-
-  // Metadados Estritamente em Runtime para a Esteira de Handshake DH
-  dhContext?: DiffieHellmanModel | null; // Guarda p, g, _b e B após o Stage 1
-  dhResult?: DHResult | null;             // Guarda o resultado final (Shared Secret) após o Stage 2
 }
 
 /**
