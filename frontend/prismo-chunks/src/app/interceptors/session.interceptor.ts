@@ -18,8 +18,7 @@ export const inboundInterceptor: HttpInterceptorFn = (req, next) => {
   if (anonymousToken) {
     headers['X-Anonymous-Token'] = anonymousToken;
   }
-  return next(req.clone({
-    setHeaders: headers }));
+  return next(req.clone({ setHeaders: headers }));
 };
 
 /**
@@ -59,9 +58,22 @@ export const transactionInterceptor: HttpInterceptorFn = (req, next) => {
  * do túnel criptográfico através do X-Window-Token e X-Freezer-Token.
  */
 export const sessionFlowInterceptor: HttpInterceptorFn = (req, next) => {
-  const context = inject(SessionContext); // Injeção do contexto para pegar o freezerToken
+  const context = inject(SessionContext); 
   const windowToken = (window as any)._sessionToken;
-  const freezerToken = context.currentState.data?.permition?.['navigation']?.['freezerToken'];
+  
+  const currentState = context?.currentState;
+  const permition = currentState?.data?.permition;
+  
+  let freezerToken: string | undefined = undefined;
+
+  // 🚀 EXTRAÇÃO SEGURA E BLINDADA DENTRO DO OBJETO NAVIGATION
+  if (permition) {
+    const navigation = permition['navigation'];
+    // Garante que o objeto navigation está instanciado antes de checar a chave interna
+    if (navigation && typeof navigation === 'object' && 'freezerToken' in navigation) {
+      freezerToken = (navigation as any)['freezerToken'] as string;
+    }
+  }
 
   const headers: { [key: string]: string } = {
     'X-App-Id': environment.appId,
@@ -73,9 +85,9 @@ export const sessionFlowInterceptor: HttpInterceptorFn = (req, next) => {
     headers['X-Window-Token'] = windowToken;
   }
 
-  // Adiciona o Freezer Token caso ele exista no contexto
+  // Adiciona o Freezer Token caso ele tenha sido localizado com sucesso
   if (freezerToken) {
-    headers['X-Freezer-Token'] = freezerToken; // Altere o nome do header ('X-Freezer-Token') se o backend esperar outra nomenclatura
+    headers['X-Freezer-Token'] = freezerToken;
   }
 
   return next(req.clone({ setHeaders: headers }));

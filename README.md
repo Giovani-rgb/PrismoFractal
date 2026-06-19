@@ -12,9 +12,7 @@
   <img src="https://img.shields.io/badge/Maven-3-C71A36?style=for-the-badge&logo=apachemaven&logoColor=white"/>
 </p>
 
-> Ferramenta criativa de composição musical com estética pixel-art, gerenciamento de letras e músicas, e sessões anônimas protegidas por handshake criptográfico Diffie-Hellman.
 
----
 
 ## Conceitos do Domínio
 
@@ -27,48 +25,7 @@
 
 ---
 
-## Arquitetura
 
-Monorepo full-stack: o Spring Boot serve tanto a API REST quanto o build estático do Angular, tudo na porta **5000**.
-
-```
-prismo/
-│
-├── frontend/prismo-chunks/               # SPA Angular 21
-│   └── src/app/
-│       ├── pages/                        # intro · dashboard · world · songs
-│       │                                 # landing · melody-dna · settings · game-menu
-│       ├── services/                     # SessionService · SessionRouter
-│       ├── interceptors/                 # session.interceptor (inbound · recovery · transaction)
-│       ├── context/                      # SessionContext — estado global (BehaviorSubject)
-│       ├── crowdedExecultion/            # SessionCreatExecution · SessionRehydratExecution
-│       ├── web-workers/                  # Web Worker: DH key exchange (off-thread)
-│       ├── services-workers/             # Orquestração dos workers
-│       ├── helpers/                      # session.helpers · crypto utils
-│       ├── models/                       # Interfaces e tipos TypeScript
-│       └── pipes/                        # Pipes Angular customizados
-│
-├── src/main/java/com/prismo/
-│   ├── config/                           # SecurityConfig · JwtService · JwtAuthenticationFilter
-│   ├── controller/                       # ViewController — serve o Angular (SPA fallback)
-│   └── modules/
-│       ├── session/
-│       │   ├── controller/               # SessionController (/public · /anonymous · /refresh)
-│       │   ├── service/                  # ServiceSession · CryptoHelper · AntiBotManager
-│       │   │                             # GeoLocationService
-│       │   ├── repository/               # SessionRepository (JPA) · RequestQueries · ResponseQueries
-│       │   ├── security/                 # SessionAuthFilter (X-App-Id)
-│       │   ├── dto/                      # DiffieHellmanModel · AntiBotMetadata
-│       │   ├── model/                    # Session entity
-│       │   ├── enums/                    # AntiBotTokenType
-│       │   └── util/                     # EncryptionUtils (AES-GCM)
-│       └── userauth/
-│           └── model/                    # UserAuth entity
-│
-└── src/main/resources/
-    ├── static/                           # Build do Angular (gerado por npm run build)
-    └── application.properties
-```
 
 ---
 
@@ -133,31 +90,7 @@ Pipeline criptográfico em 3 etapas que garante que apenas clientes legítimos c
 
 ---
 
-## Variáveis de Ambiente
 
-### Backend
-
-| Variável | Finalidade |
-|---|---|
-| `SUPABASE_PASSWORD` | Senha do banco PostgreSQL |
-| `URL_DATA_SOURCE` | JDBC URL do Supabase |
-| `USERNAME_DATABASE` | Usuário do banco |
-| `JWT_SECRET` | Segredo de assinatura dos tokens JWT |
-| `APP_SESSION_SECRET` | Autenticação interna do módulo de sessão |
-| `PORT` | Porta do servidor (padrão: `5000`) |
-| `APP_NAME` | Nome da aplicação |
-| `ENV` | Perfil de ambiente (`DEV` / `PROD`) |
-
-### Frontend (injetadas via `load-env.mjs` no build)
-
-| Variável | Finalidade |
-|---|---|
-| `VITE_API_URL` | URL base da API (vazio = relativo) |
-| `VITE_APP_NAME` | Título da aplicação |
-| `VITE_SESSION_TIMEOUT` | Timeout de sessão (ms) |
-| `VITE_JWT_TOKEN_KEY` | Chave de armazenamento do JWT no cliente |
-
----
 
 ## Como Rodar
 

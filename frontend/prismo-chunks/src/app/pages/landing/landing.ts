@@ -1,6 +1,8 @@
-import { Component, ElementRef, ViewChild, AfterViewInit, OnDestroy, HostListener } from '@angular/core';
-import { Router } from '@angular/router';
+import { Component, ElementRef, ViewChild, AfterViewInit, OnDestroy, HostListener, inject } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { CommonModule } from '@angular/common';
+// Importação correta do Serviço Injectable
+import { OAuthPiConnectExecution } from '../../crowdedExecultion/oAuthPiConnect.execultion';
 
 interface Star {
   x: number; y: number;
@@ -11,7 +13,7 @@ interface Star {
 @Component({
   selector: 'app-landing',
   standalone: true,
-  imports: [CommonModule],
+  imports: [RouterLink, CommonModule],
   templateUrl: './landing.html',
   styleUrl: './landing.scss',
 })
@@ -24,7 +26,22 @@ export class Landing implements AfterViewInit, OnDestroy {
   private titleTime    = 0;
   private readonly MAX_STARS = 200;
 
-  constructor(private router: Router) {}
+  // Injeção do serviço executora do Prismo através do Angular inject()
+  private oauthPiExecution = inject(OAuthPiConnectExecution);
+
+  // --- Paleta do Nicolas para consistência com o Canvas ───
+  private readonly PI_GOLD = '#e29b00';
+  private readonly PI_PURPLE = '#523773';
+
+  // --- Estados do Modal e Captcha ───
+  showAuthModal = false;
+  currentProvider = '';
+  
+  // Variáveis do Captcha Antibot Matemático
+  captchaNum1 = 0;
+  captchaNum2 = 0;
+  userCaptchaAnswer = '';
+  captchaError = false;
 
   ngAfterViewInit() {
     this.ctx = this.canvasRef.nativeElement.getContext('2d', { alpha: false })!;
@@ -44,9 +61,8 @@ export class Landing implements AfterViewInit, OnDestroy {
 
   private starColor(): string {
     const r = Math.random();
-    if (r < 0.13) return '#00e5ff';
-    if (r < 0.18) return '#ff0055';
-    if (r < 0.23) return '#ffe600';
+    if (r < 0.13) return this.PI_GOLD;
+    if (r < 0.23) return this.PI_PURPLE;
     return '#ffffff';
   }
 
@@ -98,19 +114,16 @@ export class Landing implements AfterViewInit, OnDestroy {
     const mobile = w < 480;
     const tablet = w < 768;
 
-    // Background
     this.ctx.fillStyle = '#000';
     this.ctx.fillRect(0, 0, w, h);
 
-    // Radial glow behind title
     const grd = this.ctx.createRadialGradient(cx, cy, 0, cx, cy, w * 0.48);
-    grd.addColorStop(0,   'rgba(0,229,255,0.05)');
-    grd.addColorStop(0.5, 'rgba(0,229,255,0.02)');
+    grd.addColorStop(0,   'rgba(82,55,115,0.08)');
+    grd.addColorStop(0.5, 'rgba(82,55,115,0.03)');
     grd.addColorStop(1,   'transparent');
     this.ctx.fillStyle = grd;
     this.ctx.fillRect(0, 0, w, h);
 
-    // Starfield
     this.stars.forEach(s => {
       s.x += s.vx; s.y += s.vy;
       if (s.opacity < 1) s.opacity += 0.018;
@@ -131,17 +144,14 @@ export class Landing implements AfterViewInit, OnDestroy {
     this.ctx.globalAlpha = 1;
     this.ctx.shadowBlur  = 0;
 
-    // Accent stars
-    this.drawAccentStar(cx - 220, cy - 72, 13, 0.75, '#00e5ff');
-    this.drawAccentStar(cx + 240, cy + 28, 17, 0.55, '#00e5ff');
-    this.drawAccentStar(cx + 28,  cy - 125, 8, 0.80, '#ffe600');
-    this.drawAccentStar(cx - 95,  cy + 105, 7, 0.45, '#ff0055');
+    this.drawAccentStar(cx - 220, cy - 72, 13, 0.75, this.PI_GOLD);
+    this.drawAccentStar(cx + 240, cy + 28, 17, 0.55, this.PI_GOLD);
+    this.drawAccentStar(cx + 28,  cy - 125, 8, 0.80, this.PI_GOLD);
+    this.drawAccentStar(cx - 95,  cy + 105, 7, 0.45, this.PI_PURPLE);
 
-    // Fade-in
     if (this.titleOpacity < 1) this.titleOpacity += 0.014;
     this.titleTime += 0.009;
 
-    // ── PRISMO with cycling extrusion colours ──
     const chars = [
       { t: 'P', s: mobile ? 44 : tablet ? 60 : 72, x: mobile ? -94  : -158 },
       { t: 'R', s: mobile ? 37 : tablet ? 51 : 61, x: mobile ? -57  : -92  },
@@ -162,10 +172,8 @@ export class Landing implements AfterViewInit, OnDestroy {
         if (i === 1) {
           col = '#ffffff';
         } else if (i > 4) {
-          // Top extrusion layers: cycling hue per-letter
           col = `hsl(${Math.round((this.titleTime * 90 + ch.x * 0.6) % 360)}, 100%, 58%)`;
         } else {
-          // Bottom extrusion: complementary hue
           col = `hsl(${Math.round((this.titleTime * 90 + ch.x * 0.6 + 165) % 360)}, 100%, 44%)`;
         }
         this.ctx.fillStyle  = col;
@@ -176,7 +184,6 @@ export class Landing implements AfterViewInit, OnDestroy {
 
     this.ctx.globalAlpha = this.titleOpacity;
 
-    // ── Rainbow baseline ──
     const lineW = mobile ? 118 : tablet ? 172 : 202;
     const lineY = cy + (mobile ? 60 : 80);
     const rainbowGrad = this.ctx.createLinearGradient(cx - lineW, 0, cx + lineW, 0);
@@ -193,7 +200,6 @@ export class Landing implements AfterViewInit, OnDestroy {
     this.ctx.lineTo(cx + lineW, lineY);
     this.ctx.stroke();
 
-    // ── Subtitle below line ──
     const subY = lineY + (mobile ? 20 : 26);
     this.ctx.font        = `${mobile ? 6 : 8}px 'Press Start 2P', monospace`;
     this.ctx.textAlign   = 'center';
@@ -208,7 +214,55 @@ export class Landing implements AfterViewInit, OnDestroy {
     this.rafId = requestAnimationFrame(() => this.animate());
   }
 
+  // --- Fluxo do Modal de Login ---
+
   login(provider: string) {
-    this.router.navigate(['/dashboard']);
+    this.currentProvider = provider;
+    this.generateCaptcha();
+    this.userCaptchaAnswer = '';
+    this.captchaError = false;
+    this.showAuthModal = true;
+  }
+
+  private generateCaptcha() {
+    this.captchaNum1 = Math.floor(Math.random() * 10) + 1;
+    this.captchaNum2 = Math.floor(Math.random() * 10) + 1;
+  }
+
+  closeModal() {
+    this.showAuthModal = false;
+  }
+
+  async confirmAuth() {
+    const expectedAnswer = this.captchaNum1 + this.captchaNum2;
+    
+    if (parseInt(this.userCaptchaAnswer, 10) === expectedAnswer) {
+      this.captchaError = false;
+      this.showAuthModal = false;
+      
+      console.log(`Authenticating token through third-party provider: ${this.currentProvider}`);
+      
+      try {
+        // Mock da chave pública RSA exigida pelo método run(). 
+        // Substitua pelo seu módulo gerador de chave RSA local quando integrar o crypto worker.
+        const mockClientPublicKeyRSA = 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA...';
+        
+        // Executa a esteira de conexão de forma assíncrona
+        const result = await this.oauthPiExecution.run(mockClientPublicKeyRSA);
+        console.log('Esteira OAuth processada com sucesso:', result);
+      } catch (pipelineError) {
+        console.error('Erro na execução da esteira do Prismo:', pipelineError);
+      }
+
+    } else {
+      this.captchaError = true;
+      this.userCaptchaAnswer = '';
+      this.generateCaptcha();
+    }
+  }
+
+  onCaptchaInput(event: Event) {
+    const input = event.target as HTMLInputElement;
+    this.userCaptchaAnswer = input.value;
   }
 }

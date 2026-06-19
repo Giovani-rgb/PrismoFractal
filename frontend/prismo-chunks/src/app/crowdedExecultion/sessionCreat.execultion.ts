@@ -4,6 +4,7 @@ import { SessionContext } from '../context/session.context';
 import { Session, SessionTag } from '../models/session.model';
 import { SessionWorkerPipe } from '../pipes/session-worker.pipe';
 import { SessionService } from '../services/session.service';
+import { AppError, ErrorAccumulator } from '../models/error.model';
 
 // Estilos padronizados para logs elegantes no DevTools
 const LOG_STYLES = {
@@ -20,6 +21,11 @@ export class SessionCreationExecution {
   private orchestrator = inject(SessionPipelineOrchestrator);
   private context = inject(SessionContext);
   private sessionService = inject(SessionService);
+
+  /**
+   * Instancia o acumulador local focado na esteira de criação
+   */
+  public errorTracker = new ErrorAccumulator('SessionCreationPipeline');
 
   /**
    * Executa o fluxo completo de criação de sessão com Handshake DH e Anti-Bot.
@@ -63,7 +69,11 @@ export class SessionCreationExecution {
       const stage2Response = await this.orchestrator.executeAssignment({ B: dhContext.B });
 
       if (!stage2Response || stage2Response.status !== "established") {
-        throw new Error('Falha ao estabelecer túnel seguro: Status inválido de handshake.');
+        throw new AppError(
+          'Falha ao estabelecer túnel seguro: Status inválido de handshake.',
+          'AUTH_ERROR',
+          401
+        );
       }
 
       // --- STAGE 1: PREPARAÇÃO PARA /ANONYMOUS ---
@@ -95,24 +105,22 @@ export class SessionCreationExecution {
       // 8. STAGE 3: Processamento e Descriptografia Dinâmica com a chave resolvida recuperada de metadata
       console.log(`%c🔑 [CRYPTO]%c Descriptografando payload utilizando a Shared Secret efêmera...`, LOG_STYLES.crypto, '');
       
-      // Captura segura do dhResult diretamente do array metadata do contexto atualizado
       const currentDHResult = this.context.currentState.metadata ? this.context.currentState.metadata[1] : null;
       if (!currentDHResult?.sharedSecret) {
-        throw new Error('Chave Shared Secret ausente no metadata do contexto para descriptografia.');
+        throw new AppError(
+          'Chave Shared Secret ausente no metadata do contexto para descriptografia.',
+          'CLIENT_ERROR'
+        );
       }
 
       let decryptedFlat = await SessionWorkerPipe.process(raw, currentDHResult.sharedSecret);
 
-      // Garantia de tipo: Se o pipe retornou string JSON por engano, forçamos o parse para objeto
       if (typeof decryptedFlat === 'string') {
         try { decryptedFlat = JSON.parse(decryptedFlat); } catch (_) {}
       }
 
-      // Tratamento de Envelope: Se vier encapsulado em .data ou .session, extrai a raiz de dados
       const payloadRoot = decryptedFlat?.data || decryptedFlat?.session || decryptedFlat;
 
-      // --- MAPEAMENTO STRIP E CONVENIENTE PARA A GAVETA 'PERMITION' ---
-      // 'token' foi removido da desestruturação para evitar erro de compilação com a interface Session
       const {
         id_prospect, idProspect,
         refs,
@@ -126,7 +134,7 @@ export class SessionCreationExecution {
       } = payloadRoot;
 
       const structuredSession: Session = {
-        id_prospect: id_prospect ?? idProspect, // Fallback automático de nomenclatura
+        id_prospect: id_prospect ?? idProspect,
         refs,
         country,
         revoked,
@@ -148,7 +156,10 @@ export class SessionCreationExecution {
 
   private async stageComplianceValidation(session: Session): Promise<void> {
     if (!session?.id_prospect) {
-      throw new Error('Atributos de sessão incompletos ou corrompidos após a decifragem.');
+      throw new AppError(
+        'Atributos de sessão incompletos ou corrompidos após a decifragem.',
+        'VALIDATION_ERROR'
+      );
     }
     console.log(`%c✅ [VALIDATION]%c Payload descriptografado e em total conformidade estrutural.`, LOG_STYLES.success, '');
   }
@@ -158,12 +169,26 @@ export class SessionCreationExecution {
     console.log(`%c🚀 [SUCCESS]%c Fluxo concluído. Sessão criptográfica ativa no contexto do Angular.`, LOG_STYLES.success, '');
   }
 
+  /**
+   * TRATAMENTO DESACOPLADO COM ACUMULADOR LOCAL
+   */
   private handleExecutionError(err: any): void {
-    const errorMsg = err.error?.error || err.message || 'Erro desconhecido';
-    console.error(`%c❌ [CRITICAL ERROR]%c Bloqueio na esteira de execução: ${errorMsg}`, LOG_STYLES.error, '');
+    let appError: AppError;
 
-    this.context.clear();
-    (window as any)._sessionToken = null;
-    (window as any)._anonymousToken = null;
+    if (err instanceof AppError) {
+      appError = err;
+    } else {
+      const errorMsg = err.error?.error || err.message || 'Erro desconhecido';
+      const statusCode = err.status || 500;
+      appError = new AppError(errorMsg, 'HTTP_ERROR', statusCode, { rawError: err });
+    }
+
+    console.error(`%c❌ [CRITICAL ERROR]%c Bloqueio na esteira de execução: ${appError.message}`, LOG_STYLES.error, '');
+
+    // Adiciona o erro unicamente no acumulador instanciado desta classe
+    this.errorTracker.add(appError);
+
+    // Arremessa para frente mantendo o fluxo determinístico da pipeline
+    throw appError;
   }
 }

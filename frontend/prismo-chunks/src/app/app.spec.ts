@@ -1,4 +1,4 @@
-import { TestBed, ComponentFixture, fakeAsync, tick } from '@angular/core/testing';
+import { TestBed, ComponentFixture } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { Title } from '@angular/platform-browser';
 import { describe, it, expect, beforeEach, afterEach, vi, Mock } from 'vitest';
@@ -15,7 +15,6 @@ describe('App Component - Ciclo de Vida do Ecossistema Prismo (Vitest)', () => {
   let component: App;
   let fixture: ComponentFixture<App>;
 
-  // Mocks do Vitest usando tipagem parcial para blindagem de interface
   let mockCreationExecution: { execute: Mock };
   let mockRehydrationExecution: { execute: Mock };
   let mockContext: { clear: Mock; currentState: PrismoSessionState };
@@ -23,37 +22,41 @@ describe('App Component - Ciclo de Vida do Ecossistema Prismo (Vitest)', () => {
   let mockRouter: { navigateByUrl: Mock; url: string };
   let mockTitleService: { setTitle: Mock };
 
-  // Estado dinâmico que simula a memória volátil (RAM) do Prismo
   let currentMockState: PrismoSessionState;
 
-  beforeEach(async () => {
-    // 1. Inicializa as estruturas de Mock usando as funções espiãs do Vitest (vi.fn())
+  beforeEach(() => {
+    vi.stubGlobal('matchMedia', vi.fn().mockImplementation(query => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })));
+
     mockCreationExecution = { execute: vi.fn() };
     mockRehydrationExecution = { execute: vi.fn() };
     
-    // Objeto dinâmico para responder ao getter do currentState
     mockContext = {
       clear: vi.fn(),
       get currentState() { return currentMockState; }
     };
     
     mockCacheService = { saveCurrentContextToVault: vi.fn() };
+    
+    // ⚙️ AJUSTE CIRÚRGICO: Retorna uma URL inicial diferente de '/' 
+    // para disparar a validação de posicionamento do redirecionamento
     mockRouter = {
       navigateByUrl: vi.fn(),
-      get url() { return '/'; }
+      get url() { return '/_bootstrap'; } 
     };
     mockTitleService = { setTitle: vi.fn() };
 
-    // Blindagem do matchMedia global (jsdom não implementa nativamente no terminal)
-    vi.stubGlobal('matchMedia', vi.fn().andReturn({
-      matches: false,
-      media: '',
-      onchange: null,
-      addListener: vi.fn(),
-      removeListener: vi.fn()
-    }));
+    TestBed.resetTestingModule();
 
-    await TestBed.configureTestingModule({
+    TestBed.configureTestingModule({
       imports: [App],
       providers: [
         { provide: SessionCreationExecution, useValue: mockCreationExecution },
@@ -63,12 +66,13 @@ describe('App Component - Ciclo de Vida do Ecossistema Prismo (Vitest)', () => {
         { provide: Router, useValue: mockRouter },
         { provide: Title, useValue: mockTitleService }
       ]
-    }).compileComponents();
+    });
   });
 
   afterEach(() => {
     sessionStorage.clear();
-    vi.restoreAllMocks(); // Limpa o histórico de chamadas das funções espiãs
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   // =================================================================
@@ -89,7 +93,6 @@ describe('App Component - Ciclo de Vida do Ecossistema Prismo (Vitest)', () => {
         use_pwa_styles: false
       };
 
-      // Simula a mutação determinística que a esteira real aplicaria
       mockCreationExecution.execute.mockImplementation(async () => {
         currentMockState.data = { id_prospect: 'prospect_novo_123' } as any;
         currentMockState.tag = SessionTag.REST;
@@ -99,21 +102,22 @@ describe('App Component - Ciclo de Vida do Ecossistema Prismo (Vitest)', () => {
       component = fixture.componentInstance;
     });
 
-    it('deve disparar a esteira de criação e processar o handshake matemático', fakeAsync(() => {
+    it('deve disparar a esteira de criação e processar o handshake matemático', async () => {
       fixture.detectChanges(); 
+      await fixture.whenStable(); 
+
       expect(mockCreationExecution.execute).toHaveBeenCalledTimes(1);
       expect(mockRehydrationExecution.execute).not.toHaveBeenCalled();
-      tick();
-    }));
+    });
 
-    it('deve selar o contexto em REST e persistir os novos metadados gerados no Vault Privado', fakeAsync(() => {
+    it('deve selar o contexto em REST e persistir os novos metadados gerados no Vault Privado', async () => {
       fixture.detectChanges();
-      tick();
+      await fixture.whenStable(); 
 
       expect(currentMockState.tag).toBe(SessionTag.REST);
       expect(mockCacheService.saveCurrentContextToVault).toHaveBeenCalledWith(environment.vaultPassword);
       expect(mockRouter.navigateByUrl).toHaveBeenCalledWith('/');
-    }));
+    });
   });
 
   // =================================================================
@@ -134,7 +138,7 @@ describe('App Component - Ciclo de Vida do Ecossistema Prismo (Vitest)', () => {
         use_pwa_styles: false
       };
 
-      mockRehydrationExecution.execute.mockImplementation(async () => {
+      mockRehydrationExecution.mockImplementation(async () => {
         currentMockState.data = { id_prospect: 'prospect_recuperado_456' } as any;
         currentMockState.tag = SessionTag.REST;
       });
@@ -143,20 +147,21 @@ describe('App Component - Ciclo de Vida do Ecossistema Prismo (Vitest)', () => {
       component = fixture.componentInstance;
     });
 
-    it('deve desviar a execução para a esteira de reidratação bypassando a rota pública de criação', fakeAsync(() => {
+    it('deve desviar a execução para a esteira de reidratação bypassando a rota pública de criação', async () => {
       fixture.detectChanges();
+      await fixture.whenStable();
+
       expect(mockRehydrationExecution.execute).toHaveBeenCalledTimes(1);
       expect(mockCreationExecution.execute).not.toHaveBeenCalled();
-      tick();
-    }));
+    });
 
-    it('deve reidratar a memória volátil, sincronizar as permissões e atualizar a custódia local', fakeAsync(() => {
+    it('deve reidratar a memória volátil, sincronizar as permissões e atualizar a custódia local', async () => {
       fixture.detectChanges();
-      tick();
+      await fixture.whenStable();
 
       expect(currentMockState.data?.id_prospect).toBe('prospect_recuperado_456');
       expect(mockCacheService.saveCurrentContextToVault).toHaveBeenCalledWith(environment.vaultPassword);
-    }));
+    });
   });
 
   // =================================================================
@@ -181,19 +186,20 @@ describe('App Component - Ciclo de Vida do Ecossistema Prismo (Vitest)', () => {
       component = fixture.componentInstance;
     });
 
-    it('deve ignorar a chamada de ambas as esteiras de execução para poupar processamento e Web Workers', fakeAsync(() => {
+    it('deve ignorar a chamada de ambas as esteiras de execução para poupar processamento e Web Workers', async () => {
       fixture.detectChanges();
+      await fixture.whenStable();
+
       expect(mockCreationExecution.execute).not.toHaveBeenCalled();
       expect(mockRehydrationExecution.execute).not.toHaveBeenCalled();
-      tick();
-    }));
+    });
 
-    it('deve apenas validar o posicionamento de rotas e manter a integridade intocada da RAM e do Vault', fakeAsync(() => {
+    it('deve apenas validar o posicionamento de rotas e manter a integridade intocada da RAM e do Vault', async () => {
       fixture.detectChanges();
-      tick();
+      await fixture.whenStable();
 
       expect(mockCacheService.saveCurrentContextToVault).not.toHaveBeenCalled();
       expect(mockRouter.navigateByUrl).toHaveBeenCalledWith('/');
-    }));
+    });
   });
 });

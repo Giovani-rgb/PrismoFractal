@@ -1,4 +1,7 @@
+<router-outlet></router-outlet>
 
-
-
-<router-outlet />
+@if (hasInitializationFailed) {
+  <div class="error-badge-footer">
+    ⚠️ Atenção: Detectamos {{ totalErrors }} falha(s) na inicialização do motor Prismo.
+  </div>
+}

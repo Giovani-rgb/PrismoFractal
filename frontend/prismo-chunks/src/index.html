@@ -2,21 +2,32 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' https://*.minepi.com https://fonts.googleapis.com https://fonts.gstatic.com https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.minepi.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;">
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 
-  <title>%VITE_APP_NAME%</title>
+  <title>Prismo</title>
   <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <script src="https://sdk.minepi.com/pi-sdk.js"></script>
 </head>
 <body>
+  
   <app-root></app-root>
+
+  
+  <script>
+    // Inicializa o Sandbox no body após o carregamento dos elementos
+    Pi.init({ version: "2.0", sandbox: true });
+  </script>
+
   <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
-<script>
-  eruda.init();
-</script>
+  <script>
+    eruda.init();
+  </script>
 
 </body>
 </html>

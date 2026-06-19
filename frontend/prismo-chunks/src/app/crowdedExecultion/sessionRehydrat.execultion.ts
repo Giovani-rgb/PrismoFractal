@@ -5,8 +5,10 @@ import { SessionTag, PrismoSessionState, Session, SessionPermition, DHResult } f
 import { SessionWorkerPipe } from '../pipes/session-worker.pipe';
 import { SessionCacheService } from '../private/session-cache.service';
 import { environment } from '../../environments/environment';
+// Importação do modelo de erros desacoplado
+import { AppError, ErrorAccumulator } from '../models/error.model';
 
-// Estilos padronizados para logs elegantes no DevTools (Alinhado com a esteira de Create)
+// Estilos padronizados para logs elegantes no DevTools
 const LOG_STYLES = {
   crypto: 'background: #3b82f6; color: #fff; padding: 2px 6px; border-radius: 3px; font-weight: bold;',
   antibot: 'background: #f59e0b; color: #fff; padding: 2px 6px; border-radius: 3px; font-weight: bold;',
@@ -24,6 +26,11 @@ export class SessionRehydrationExecution {
   private orchestrator = inject(SessionPipelineOrchestrator);
   private context = inject(SessionContext);
   private cacheService = inject(SessionCacheService);
+
+  /**
+   * Instancia o acumulador local focado na esteira de reidratação
+   */
+  public errorTracker = new ErrorAccumulator('SessionRehydrationPipeline');
 
   async execute(): Promise<void> {
     console.log(
@@ -45,7 +52,7 @@ export class SessionRehydrationExecution {
     // Se não está em REST, fixa em PUBLIC até concluir a rota pública externa
     this.context.setOperation(SessionTag.PUBLIC);
     console.log(
-      `%c🛡️ [ANTI-BOT]%c Tag de operação fixada preventivamente em: "${this.context.currentState.tag}"`,
+      `%c🛡️ [ANTI-BOT]%c Tag de operação fixada preventivamente indevidamente em: "${this.context.currentState.tag}"`,
       LOG_STYLES.antibot, ''
     );
 
@@ -55,14 +62,16 @@ export class SessionRehydrationExecution {
       // ─────────────────────────────────────────────────────────────────
       const rawData = sessionStorage.getItem(this.STORAGE_KEY);
       if (!rawData) {
-        throw new Error(`Payload bruto não encontrado na chave: ${this.STORAGE_KEY}`);
+        throw new AppError(
+          `Payload bruto não encontrado na chave: ${this.STORAGE_KEY}`,
+          'CLIENT_ERROR'
+        );
       }
       const encrypted = JSON.parse(rawData);
 
       // ─────────────────────────────────────────────────────────────────
       // STAGE 2: RESOLUÇÃO DO SEGREDO (metadata[1] ou Vault)
       // ─────────────────────────────────────────────────────────────────
-      // Recupera o dhResult da posição [1] da tupla metadata caso já exista na RAM
       let activeSecret: string | undefined = state.metadata ? state.metadata[1]?.sharedSecret : undefined;
       let cachedPermissions: SessionPermition | null = null;
       let vaultDhResult: DHResult | null = null;
@@ -70,7 +79,11 @@ export class SessionRehydrationExecution {
       if (!activeSecret) {
         const vaultData = this.cacheService.recoverVaultData(this.VAULT_PASSWORD);
         if (!vaultData?.sharedSecret) {
-          throw new Error('Quebra de Conexão: sharedSecret indisponível no cache e no contexto.');
+          throw new AppError(
+            'Quebra de Conexão: sharedSecret indisponível no cache e no contexto.',
+            'AUTH_ERROR',
+            401
+          );
         }
         activeSecret = vaultData.sharedSecret;
         cachedPermissions = vaultData.permissions;
@@ -87,13 +100,15 @@ export class SessionRehydrationExecution {
       // ─────────────────────────────────────────────────────────────────
       const workerResult = await SessionWorkerPipe.process(encrypted, activeSecret);
       if (!workerResult.session?.id_prospect) {
-        throw new Error('Falha de Integridade: id_prospect ausente no resultado do Worker.');
+        throw new AppError(
+          'Falha de Integridade: id_prospect ausente no resultado do Worker.',
+          'VALIDATION_ERROR'
+        );
       }
 
       // ─────────────────────────────────────────────────────────────────
       // STAGE 4: SEPARAÇÃO DE ESCOPOS (Hidratação da RAM)
       // ─────────────────────────────────────────────────────────────────
-      // Se viemos do Vault, reinjeta as chaves matemáticas de volta na tupla metadata do contexto
       if (vaultDhResult) {
         console.log(`%c🔑 [CRYPTO]%c Hidratando a tupla metadata na RAM com o contrato recuperado do Vault.`, LOG_STYLES.crypto, '');
         this.context.setDHResult(vaultDhResult); 
@@ -130,7 +145,6 @@ export class SessionRehydrationExecution {
         );
       } else {
         try {
-          // Força o estado PUBLIC para blindar a chamada de rede à rota externa
           this.context.setOperation(SessionTag.PUBLIC);
           await this.rehydrateViaFreezeToken(activeSecret, dataScope.id_prospect);
         } catch (netErr) {
@@ -150,9 +164,7 @@ export class SessionRehydrationExecution {
         LOG_STYLES.success, ''
       );
     } catch (error) {
-      const errorMsg = (error as any).message || 'Erro desconhecido';
-      console.log(`%c❌ [CRITICAL ERROR]%c Bloqueio na esteira REHYDRATE: ${errorMsg}`, LOG_STYLES.error, '');
-      throw error;
+      this.handleExecutionError(error);
     }
   }
 
@@ -202,15 +214,19 @@ export class SessionRehydrationExecution {
           LOG_STYLES.success, ''
         );
       } else {
-        throw new Error('Falha de leitura: refreshPassport ausente no payload decifrado.');
+        throw new AppError('Falha de leitura: refreshPassport ausente no payload decifrado.', 'VALIDATION_ERROR');
       }
 
-    } catch (decryptErr) {
+    } catch (decryptErr: any) {
       console.log(
         `%c❌ [CRITICAL ERROR]%c Falha crítica ao processar ou descriptografar resposta do servidor.`,
         LOG_STYLES.error, ''
       );
-      throw decryptErr; 
+      
+      if (decryptErr instanceof AppError) {
+        throw decryptErr;
+      }
+      throw new AppError(decryptErr?.message || 'Falha na descriptografia da rede', 'HTTP_ERROR', decryptErr?.status);
     } finally {
       this.context.setOperation(SessionTag.REHYDRATE);
       console.log(
@@ -218,5 +234,28 @@ export class SessionRehydrationExecution {
         LOG_STYLES.payload, ''
       );
     }
+  }
+
+  /**
+   * TRATAMENTO DESACOPLADO COM ACUMULADOR LOCAL
+   */
+  private handleExecutionError(err: any): void {
+    let appError: AppError;
+
+    if (err instanceof AppError) {
+      appError = err;
+    } else {
+      const errorMsg = err.error?.error || err.message || 'Erro desconhecido na reidratação';
+      const statusCode = err.status || 500;
+      appError = new AppError(errorMsg, 'CLIENT_ERROR', statusCode, { rawError: err });
+    }
+
+    console.error(`%c❌ [CRITICAL ERROR]%c Bloqueio na esteira REHYDRATE: ${appError.message}`, LOG_STYLES.error, '');
+
+    // Adiciona o erro unicamente no acumulador local instanciado desta esteira
+    this.errorTracker.add(appError);
+
+    // Arremessa para frente mantendo o fluxo determinístico da pipeline
+    throw appError;
   }
 }

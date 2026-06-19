@@ -2,65 +2,106 @@
   <canvas #landingCanvas></canvas>
   <div class="scanlines"></div>
 
-  <!-- Background vinyl (decorative, behind content) -->
-  <div class="vinyl-bg-wrap">
-    <div class="vinyl-disc vinyl-bg">
-      <div class="vinyl-grooves"></div>
-      <div class="vinyl-label"><span>P</span></div>
-      <div class="vinyl-shine"></div>
-    </div>
-  </div>
-
   <div class="content-overlay">
-
-    <section class="hero">
-      <div class="hero-text">
-        <p class="hero-eyebrow">[ v1.0 — BETA ]</p>
-        
-      </div>
-    </section>
-
     
+    <div class="canvas-spacer"></div>
 
     <section class="auth-section">
-      <p class="auth-label">— SELECT LOGIN —</p>
+      <p class="auth-label">— SELECT WEB3 GATEWAY —</p>
       <div class="auth-buttons">
-        <button class="btn-login btn-google" (click)="login('google')">
-          <span class="btn-icon google-icon">G</span>
-          <span class="btn-text">Continue with Google</span>
+        
+        <button class="btn-login btn-pi" (click)="login('pi')">
+          <span class="btn-icon pi-icon">π</span>
+          <span class="btn-text">Pi Network Auth</span>
           <span class="btn-arrow">›</span>
         </button>
-        <button class="btn-login btn-fb" (click)="login('facebook')">
-          <span class="btn-icon fb-icon">f</span>
-          <span class="btn-text">Continue with Facebook</span>
+
+        <button class="btn-login btn-google" (click)="login('google')">
+          <span class="btn-icon google-icon">G</span>
+          <span class="btn-text">Google Account</span>
           <span class="btn-arrow">›</span>
         </button>
       </div>
       <p class="auth-fine">🔒 Sessions are anonymous &amp; end-to-end encrypted.</p>
     </section>
 
+    <section class="system-features">
+      
+      <div class="feature-row">
+        <div class="feature-card telemetry">
+          <div class="card-header">[ LIVE STREAM TELEMETRY ]</div>
+          <div class="telemetry-grid">
+            <div class="stat-box">
+              <span class="stat-value unique-glow">1,409,282</span>
+              <span class="stat-label">ACTIVE_PLAYERS</span>
+            </div>
+            <div class="stat-box">
+              <span class="stat-value text-green">● ONLINE</span>
+              <span class="stat-label">STREAM_ORCHESTRATOR</span>
+            </div>
+          </div>
+        </div>
+        
+        <div class="feature-card">
+          <div class="card-header">[ WHAT IS PRISMO? ]</div>
+          <p class="card-body">
+            Prismo é uma plataforma descentralizada de streaming de música focada no cenário underground. Aqui você constrói e molda seu som através de uma esteira de presets modulares, assume o controle total das suas faixas e distribui sua arte diretamente para o mundo através de grandes agregadores como OneRPM.
+          </p>
+        </div>
+      </div>
+
+      <div class="feature-row">
+        <div class="feature-card wide">
+          <div class="card-header">[ ECOSYSTEM INTEGRATIONS // FEATURES ]</div>
+          <div class="partners-grid">
+            <div class="partner-tag">PI_NETWORK_TRANSACTIONS</div>
+            <div class="partner-tag">ONERPM_DISTRIBUTION</div>
+            <div class="partner-tag">MODULAR_PRESET_BUILDER</div>
+            <div class="partner-tag">SECURE_WEB3_HANDSHAKE</div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <footer class="system-footer">
+      <div class="footer-links">
+        <a routerLink="/privacity" class="footer-link">[ PRIVACITY ]</a>
+        <span class="footer-spacer">//</span>
+        <a routerLink="/terms" class="footer-link">[ TERMS ]</a>
+      </div>
+      <p class="footer-copyright">© 2026 PRISMO ORCHESTRATOR. ALL RIGHTS RESERVED.</p>
+    </footer>
+
   </div>
 
-  <nav class="bottom-bar">
-    <div class="nav-item">
-      <span class="nav-icon">⌂</span>
-      <span class="nav-label">HOME</span>
+  <div class="modal-overlay" *ngIf="showAuthModal">
+    <div class="modal-content">
+      <h2>Aviso de Conexão</h2>
+      <p>Você está prestes a conectar uma aplicação de terceiros com a <strong>Pi Network</strong>.</p>
+      <p class="warning-text">Ao continuar, você compartilhará as seguintes informações:</p>
+      
+      <ul>
+        <li>Nome de usuário</li>
+        <li>Endereço da Carteira (Wallet)</li>
+      </ul>
+
+      <div class="captcha-box">
+        <label>Verificação Antibot: Quanto é {{captchaNum1}} + {{captchaNum2}}?</label>
+        <input 
+          type="number" 
+          [value]="userCaptchaAnswer" 
+          (input)="onCaptchaInput($event)" 
+          placeholder="Resposta"
+        />
+        <p class="error-msg" *ngIf="captchaError">Resposta incorreta. Tente novamente!</p>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-cancel" (click)="closeModal()">Cancelar</button>
+        <button class="btn-confirm" (click)="confirmAuth()">Confirmar e Vincular</button>
+      </div>
     </div>
-    <div class="nav-item">
-      <span class="nav-icon">🧭</span>
-      <span class="nav-label">EXPLORE</span>
-    </div>
-    <div class="nav-item active">
-      <span class="nav-icon-main">🎙</span>
-      <span class="nav-label">CREATE</span>
-    </div>
-    <div class="nav-item">
-      <span class="nav-icon">💽</span>
-      <span class="nav-label">LIBRARY</span>
-    </div>
-    <div class="nav-item">
-      <span class="nav-icon">🔔</span>
-      <span class="nav-label">SOCIAL</span>
-    </div>
-  </nav>
+  </div>
+
 </div>

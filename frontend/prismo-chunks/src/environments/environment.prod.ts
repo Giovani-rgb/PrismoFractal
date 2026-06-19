@@ -4,7 +4,7 @@ export const environment = {
   appId: 'IdApp-jdusywnnwi-siddhwbwu7383-u3728',
   appVersion: '0.0.1',
   appSessionSecret: 'b7f9a2e5d8c3f1g4h6j9k0l2m5n8p1q4',
-  apiUrl: '',
+  apiUrl: 'https://f039b9d2-7940-4b9a-8f3f-5050e56ae48b-00-3ipfqo8asriza.worf.replit.dev',
   sessionTimeout: 1600000,
   nameSessionKey: 'Gn0rRkBkHyfN7sk5S16ijIKpniaZ2JlHAmfzrU5+V653s5CgmCb7UalrNyOlARSo8SnUUCBpJMigWseRcPLuUP==',
   vaultPassword: 'Coyxitxufxuftbtvtvrccechucuchcycttgf',

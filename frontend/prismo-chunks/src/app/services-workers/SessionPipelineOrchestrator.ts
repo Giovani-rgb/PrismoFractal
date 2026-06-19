@@ -1,4 +1,4 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, Injector, runInInjectionContext } from '@angular/core';
 import { HttpInterceptorFn, HttpRequest, HttpHandlerFn } from '@angular/common/http';
 import { SessionService } from '../services/session.service';
 import { SessionContext } from '../context/session.context';
@@ -10,17 +10,22 @@ export class SessionPipelineOrchestrator {
   private service = inject(SessionService);
   private context = inject(SessionContext);
 
-  /**
+    /**
    * GATEKEEPER (Lógica Interna)
-   * Agora como um método de classe para garantir o acesso ao 'this.context'
+   * Recebe o injector para garantir que contratos do SessionRouter rodem em contexto seguro
    */
-  handleIntercept(req: HttpRequest<unknown>, next: HttpHandlerFn) {
+  handleIntercept(req: HttpRequest<unknown>, next: HttpHandlerFn, injector: Injector) {
     const state = this.context.currentState;
     const route = SessionRouter.resolvePipeline(state.tag);
 
-    // Se o contrato possuir um interceptor específico (ex: injetar Headers de Session)
     if (route?.interceptor) {
-      return route.interceptor(req, next);
+      // 🚀 EXTRAÇÃO CIRÚRGICA: Isolamos a função pura do objeto para limpar o 'this' corrompido do JavaScript
+      const executeInterceptor = route.interceptor;
+
+      return runInInjectionContext(injector, () => {
+        // Executa a função de forma isolada do objeto 'route'
+        return executeInterceptor(req, next);
+      });
     }
 
     return next(req);
@@ -51,9 +56,13 @@ export class SessionPipelineOrchestrator {
 
 /**
  * Registro funcional exportado para o provideHttpClient
- * Esta função precisa ser pura e injetar o orquestrador no momento da execução.
  */
 export const sessionGatekeeper: HttpInterceptorFn = (req, next) => {
-  const orchestrator = inject(SessionPipelineOrchestrator);
-  return orchestrator.handleIntercept(req, next);
+  const injector = inject(Injector);
+
+  return runInInjectionContext(injector, () => {
+    const orchestrator = inject(SessionPipelineOrchestrator);
+    // Passamos o injector para blindar as sub-chamadas do SessionRouter
+    return orchestrator.handleIntercept(req, next, injector);
+  });
 };

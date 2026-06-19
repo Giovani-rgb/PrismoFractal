@@ -1,4 +1,6 @@
 import { Routes } from '@angular/router';
+import { whitelistGuard } from './guards/sessionWhiteList.guards';
+
 import { Intro } from './pages/intro/intro';
 import { World } from './pages/world/world';
 import { Songs } from './pages/songs/songs';
@@ -7,12 +9,25 @@ import { Landing } from './pages/landing/landing';
 import { MelodyDna } from './pages/melody-dna/melody-dna';
 import { Dashboard } from './pages/dashboard/dashboard';
 
+// Novas Importações Modernas
+import { Unauthorized } from './pages/unauthorized/unauthorized';
+import { Privacy } from './pages/privacity/privacity';
+import { Terms } from './pages/terms/terms';
+
 export const routes: Routes = [
-  { path: '', component: Landing },
-  { path: 'dashboard', component: Dashboard },
-  { path: 'world', component: World },
-  { path: 'songs', component: Songs },
-  { path: 'settings', component: Settings },
-  { path: 'landing', component: Intro },
-  { path: 'melody-dna', component: MelodyDna}
+  // Rotas Públicas Regulamentares (Com suporte ao Guard)
+  { path: '', component: Landing, canActivate: [whitelistGuard], data: { isPublic: true } },
+  { path: 'landing', component: Intro, canActivate: [whitelistGuard], data: { isPublic: true } },
+  { path: 'privacity', component: Privacy, canActivate: [whitelistGuard], data: { isPublic: true } },
+  { path: 'terms', component: Terms, canActivate: [whitelistGuard], data: { isPublic: true } },
+
+  // Rotas Privadas Restritas
+  { path: 'dashboard', component: Dashboard, canActivate: [whitelistGuard], data: { interactionModule: 'dashboard_overview' } },
+  { path: 'world', component: World, canActivate: [whitelistGuard], data: { interactionModule: 'world_map' } },
+  { path: 'songs', component: Songs, canActivate: [whitelistGuard], data: { interactionModule: 'song_library' } },
+  { path: 'settings', component: Settings, canActivate: [whitelistGuard], data: { interactionModule: 'system_settings' } },
+  { path: 'melody-dna', component: MelodyDna, canActivate: [whitelistGuard], data: { interactionModule: 'melody_analytics' } },
+
+  // Rota de escape
+  { path: 'unauthorized', component: Unauthorized }
 ];
