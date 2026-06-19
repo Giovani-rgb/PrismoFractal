@@ -70,14 +70,16 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        
-        // Permite requisições vindas dos domínios do seu Firebase Hosting
-        configuration.setAllowedOrigins(Arrays.asList(
+
+        configuration.setAllowedOriginPatterns(Arrays.asList(
             "https://prismo-262a2.web.app",
-            
-            "https://prismo-262a2.firebaseapp.com"
+            "https://prismo-262a2.firebaseapp.com",
+            "https://*.replit.dev",
+            "https://*.spock.replit.dev",
+            "https://*.replit.app",
+            "http://localhost:*"
         ));
-        
+
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);
