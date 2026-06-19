@@ -6,14 +6,35 @@ import com.prismo.modules.session.service.CryptoHelper;
 import com.prismo.modules.session.util.EncryptionUtils;
 import org.springframework.stereotype.Service;
 
+import javax.crypto.Cipher;
+import java.security.KeyFactory;
+import java.security.PublicKey;
+import java.security.SecureRandom;
+import java.security.spec.MGF1ParameterSpec;
+import java.security.spec.X509EncodedKeySpec;
+import javax.crypto.spec.OAEPParameterSpec;
+import javax.crypto.spec.PSource;
+import java.util.Base64;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class ServiceOAuthPi {
 
-    private final AppLogger     log;
-    private final CryptoHelper  cryptoHelper;
-    private final ObjectMapper  objectMapper;
+    private final AppLogger    log;
+    private final CryptoHelper cryptoHelper;
+    private final ObjectMapper objectMapper;
+    private final SecureRandom secureRandom = new SecureRandom();
+
+    // Armazena o challenge RSA em RAM: { id_prospect → challengeHex }
+    // Uso único: gerado em /r, consumido em /PiOAuth.
+    private final ConcurrentHashMap<String, String> rsaChallenges = new ConcurrentHashMap<>();
+
+    // Spec de padding alinhada ao SubtleCrypto do browser:
+    //   RSA-OAEP + SHA-256 (hash e MGF1)
+    private static final OAEPParameterSpec OAEP_SPEC = new OAEPParameterSpec(
+        "SHA-256", "MGF1", new MGF1ParameterSpec("SHA-256"), PSource.PSpecified.DEFAULT
+    );
 
     public ServiceOAuthPi(AppLogger log, CryptoHelper cryptoHelper, ObjectMapper objectMapper) {
         this.log          = log;
@@ -22,51 +43,46 @@ public class ServiceOAuthPi {
     }
 
     // =========================================================================
-    // ROTA /r — Decifra o envelope RSA assinado pelo túnel DH e emite passaporte
+    // ROTA /r — Dupla validação + geração do challenge RSA-OAEP
+    //
+    // Fluxo:
+    //   1. Recupera sharedSecret DH via freezerToken
+    //   2. Decifra envelope AES-GCM(DH) → extrai { id_prospect, clientPublicKeyRSA, intent }
+    //   3. Valida id_prospect e intent
+    //   4. Importa clientPublicKeyRSA como X.509 / SPKI
+    //   5. Gera challenge aleatório (32 bytes → hex)
+    //   6. Cifra challenge com RSA-OAEP(clientPublicKeyRSA) → rsaEncryptedChallenge
+    //   7. Persiste challenge em RAM keyed por id_prospect
+    //   8. Retorna { status, serverSessionRef, rsaEncryptedChallenge }
     // =========================================================================
-
-    /**
-     * Recebe o envelope AES-GCM { iv, ciphertext } vindo do Angular.
-     * Recupera o sharedSecret DH pelo freezerToken, decifra o payload,
-     * valida a intenção e o id_prospect, e emite o serverSessionRef.
-     *
-     * @param freezerToken   Header X-Freezer-Token da sessão estabelecida
-     * @param ivBase64       IV do envelope (base64, 12 bytes)
-     * @param ciphertextBase64 Ciphertext AES-GCM (base64)
-     * @return Passaporte de referência para a rota /PiOAuth (Stage 6)
-     */
     @SuppressWarnings("unchecked")
     public Map<String, Object> handleOAuthPassportIssue(
             String freezerToken,
             String ivBase64,
             String ciphertextBase64
     ) {
-        log.queries("Iniciando decifragem do envelope RSA-OAEP via túnel DH.");
+        log.queries("Iniciando /r: decifragem AES-GCM(DH) + geração de challenge RSA-OAEP.");
 
-        // 1. Recupera o sharedSecret DH vinculado ao freezerToken desta sessão
+        // 1. Shared Secret DH via freezerToken
         String sharedSecret = cryptoHelper.getSecretByToken(freezerToken);
         if (sharedSecret == null || sharedSecret.isBlank()) {
-            throw new RuntimeException(
-                "Shared Secret não localizado: freezerToken inválido, expirado ou sessão encerrada."
-            );
+            throw new RuntimeException("Shared Secret não localizado: freezerToken inválido ou expirado.");
         }
-        log.queries("Shared Secret DH recuperado com sucesso via freezerToken.");
 
-        // 2. Decifra o envelope AES-GCM usando a chave derivada do sharedSecret
+        // 2. Decifrar envelope AES-GCM
         String plainJson;
         try {
             plainJson = EncryptionUtils.decrypt(ivBase64, ciphertextBase64, sharedSecret);
         } catch (Exception e) {
-            throw new RuntimeException("Falha na decifragem AES-GCM do envelope RSA: " + e.getMessage());
+            throw new RuntimeException("Falha na decifragem AES-GCM do envelope /r: " + e.getMessage());
         }
-        log.queries("Envelope decifrado com sucesso. Validando payload.");
 
-        // 3. Parseia e valida o payload { id_prospect, clientPublicKeyRSA, intent, ts }
+        // 3. Parsear e validar payload
         Map<String, Object> payload;
         try {
             payload = objectMapper.readValue(plainJson, Map.class);
         } catch (Exception e) {
-            throw new RuntimeException("Payload decifrado inválido (JSON malformado): " + e.getMessage());
+            throw new RuntimeException("Payload /r malformado após decifragem: " + e.getMessage());
         }
 
         String idProspect      = (String) payload.get("id_prospect");
@@ -74,89 +90,156 @@ public class ServiceOAuthPi {
         String intent          = (String) payload.get("intent");
 
         if (idProspect == null || idProspect.isBlank()) {
-            throw new RuntimeException("Validação falhou: id_prospect ausente no payload decifrado.");
+            throw new RuntimeException("Validação /r: id_prospect ausente.");
         }
         if (!"PI_NETWORK_OAUTH_AUTHORIZATION".equals(intent)) {
-            throw new RuntimeException("Validação falhou: intent inválido — '" + intent + "'.");
+            throw new RuntimeException("Validação /r: intent inválido — '" + intent + "'.");
         }
         if (clientPublicKey == null || clientPublicKey.isBlank()) {
-            throw new RuntimeException("Validação falhou: clientPublicKeyRSA ausente no payload decifrado.");
+            throw new RuntimeException("Validação /r: clientPublicKeyRSA ausente.");
         }
 
-        log.controllers("Payload validado. id_prospect={}, intent={}", idProspect, intent);
+        log.controllers("Payload /r validado. id_prospect={}, intent={}.", idProspect, intent);
 
-        // 4. Emite o passaporte de referência para o Stage 6
+        // 4. Importar chave pública RSA-OAEP do cliente (formato SPKI / X.509)
+        PublicKey rsaPublicKey;
+        try {
+            byte[] keyBytes = Base64.getDecoder().decode(clientPublicKey);
+            rsaPublicKey = KeyFactory.getInstance("RSA")
+                    .generatePublic(new X509EncodedKeySpec(keyBytes));
+        } catch (Exception e) {
+            throw new RuntimeException("Falha ao importar clientPublicKeyRSA (SPKI inválido): " + e.getMessage());
+        }
+
+        // 5. Gerar challenge aleatório (32 bytes → hex lowercase)
+        byte[] challengeBytes = new byte[32];
+        secureRandom.nextBytes(challengeBytes);
+        StringBuilder hexBuilder = new StringBuilder(64);
+        for (byte b : challengeBytes) {
+            hexBuilder.append(String.format("%02x", b));
+        }
+        String challenge = hexBuilder.toString();
+
+        // 6. Cifrar challenge com RSA-OAEP(SHA-256 / MGF1-SHA-256)
+        //    Alinhado ao SubtleCrypto: { name: 'RSA-OAEP', hash: 'SHA-256' }
+        String rsaEncryptedChallenge;
+        try {
+            Cipher rsaCipher = Cipher.getInstance("RSA/ECB/OAEPPadding");
+            rsaCipher.init(Cipher.ENCRYPT_MODE, rsaPublicKey, OAEP_SPEC);
+            byte[] encrypted = rsaCipher.doFinal(challenge.getBytes("UTF-8"));
+            rsaEncryptedChallenge = Base64.getEncoder().encodeToString(encrypted);
+        } catch (Exception e) {
+            throw new RuntimeException("Falha ao cifrar challenge com RSA-OAEP: " + e.getMessage());
+        }
+
+        // 7. Persiste challenge em RAM (uso único — consumido em /PiOAuth)
+        rsaChallenges.put(idProspect, challenge);
+        log.controllers("Challenge RSA-OAEP gerado e cifrado para id_prospect={}.", idProspect);
+
+        // 8. Retorna passaporte com rsaEncryptedChallenge
         return Map.of(
-            "status",           "HANDSHAKE_OK",
-            "serverSessionRef", Map.of(
+            "status",                "HANDSHAKE_OK",
+            "rsaEncryptedChallenge", rsaEncryptedChallenge,
+            "serverSessionRef",      Map.of(
                 "validated_prospect", idProspect,
                 "intent",             intent,
-                "keyHint",            clientPublicKey.length() > 32
-                                          ? clientPublicKey.substring(0, 32) + "..."
-                                          : clientPublicKey,
                 "ts",                 payload.getOrDefault("ts", System.currentTimeMillis())
             )
         );
     }
 
     // =========================================================================
-    // ROTA /PiOAuth — Decifra payload de consolidação e finaliza autenticação Pi
+    // ROTA /PiOAuth — Consolidação Pi Network selada pelas duas criptografias
+    //
+    // Camada 1 (DH):  AES-GCM(sharedSecret) → abre o envelope
+    // Camada 2 (RSA): rsaProof deve bater com o challenge armazenado
+    //                 → prova que o cliente decifrou o RSA-OAEP em /r
+    //
+    // Fluxo:
+    //   1. Decifra AES-GCM(DH)
+    //   2. Extrai rsaProof + piAuthData + serverSessionRef
+    //   3. Recupera challenge armazenado (id_prospect do serverSessionRef)
+    //   4. Verifica rsaProof == challenge (timing-safe)
+    //   5. Remove challenge (uso único)
+    //   6. Retorna identidade consolidada
     // =========================================================================
-
-    /**
-     * Recebe o envelope AES-GCM { iv, ciphertext } da consolidação Pi Network.
-     * Decifra usando o mesmo sharedSecret DH, extrai piAuthData e persiste a identidade.
-     *
-     * @param freezerToken     Header X-Freezer-Token da sessão
-     * @param ivBase64         IV do envelope (base64)
-     * @param ciphertextBase64 Ciphertext AES-GCM (base64)
-     * @return Payload final de autenticação consolidada
-     */
     @SuppressWarnings("unchecked")
     public Map<String, Object> processPiNetworkAuthentication(
             String freezerToken,
             String ivBase64,
             String ciphertextBase64
     ) {
-        log.queries("Iniciando consolidação Pi Network via decifragem do envelope DH-Signed.");
+        log.queries("Iniciando /PiOAuth: decifragem AES-GCM(DH) + verificação RSA proof.");
 
-        // 1. Recupera o sharedSecret DH
+        // 1. Shared Secret DH
         String sharedSecret = cryptoHelper.getSecretByToken(freezerToken);
         if (sharedSecret == null || sharedSecret.isBlank()) {
-            throw new RuntimeException(
-                "Shared Secret não localizado: freezerToken inválido ou sessão encerrada."
-            );
+            throw new RuntimeException("Shared Secret não localizado: freezerToken inválido ou expirado.");
         }
 
-        // 2. Decifra o envelope
+        // 2. Decifrar envelope AES-GCM
         String plainJson;
         try {
             plainJson = EncryptionUtils.decrypt(ivBase64, ciphertextBase64, sharedSecret);
         } catch (Exception e) {
-            throw new RuntimeException("Falha na decifragem AES-GCM do payload Pi Network: " + e.getMessage());
+            throw new RuntimeException("Falha na decifragem AES-GCM do envelope /PiOAuth: " + e.getMessage());
         }
 
-        // 3. Parseia { serverSessionRef, piAuthData, ts }
         Map<String, Object> payload;
         try {
             payload = objectMapper.readValue(plainJson, Map.class);
         } catch (Exception e) {
-            throw new RuntimeException("Payload Pi Network inválido (JSON malformado): " + e.getMessage());
+            throw new RuntimeException("Payload /PiOAuth malformado após decifragem: " + e.getMessage());
         }
 
-        Map<String, Object> piAuthData     = (Map<String, Object>) payload.get("piAuthData");
-        Map<String, Object> serverSession  = (Map<String, Object>) payload.get("serverSessionRef");
+        // 3. Extrair campos
+        String              rsaProof      = (String)              payload.get("rsaProof");
+        Map<String, Object> piAuthData    = (Map<String, Object>) payload.get("piAuthData");
+        Map<String, Object> serverSession = (Map<String, Object>) payload.get("serverSessionRef");
 
+        if (rsaProof == null || rsaProof.isBlank()) {
+            throw new RuntimeException("Verificação RSA /PiOAuth: rsaProof ausente no payload.");
+        }
         if (piAuthData == null) {
-            throw new RuntimeException("Validação falhou: piAuthData ausente no payload decifrado.");
+            throw new RuntimeException("Verificação /PiOAuth: piAuthData ausente no payload.");
         }
 
-        String accessToken = (String) piAuthData.get("accessToken");
-        Map<String, Object> user = (Map<String, Object>) piAuthData.get("user");
+        // 4. Recuperar e verificar o challenge RSA
+        String idProspect = serverSession != null
+                ? (String) serverSession.get("validated_prospect")
+                : null;
 
-        log.controllers("Pi Network payload consolidado. Usuário: {}", user != null ? user.get("username") : "N/A");
+        if (idProspect == null || idProspect.isBlank()) {
+            throw new RuntimeException("Verificação RSA /PiOAuth: id_prospect ausente no serverSessionRef.");
+        }
 
-        // 4. Retorna identidade consolidada
+        String storedChallenge = rsaChallenges.get(idProspect);
+        if (storedChallenge == null) {
+            throw new RuntimeException(
+                "Verificação RSA /PiOAuth: challenge não localizado para o prospect. "
+                + "O fluxo /r não foi concluído ou o challenge já foi consumido."
+            );
+        }
+
+        // Comparação timing-safe (evita timing attacks)
+        if (!timingSafeEquals(rsaProof, storedChallenge)) {
+            rsaChallenges.remove(idProspect); // descarta mesmo em falha
+            throw new RuntimeException(
+                "Verificação RSA /PiOAuth: rsaProof inválido. "
+                + "Posse da chave privada RSA não confirmada — acesso negado."
+            );
+        }
+
+        // 5. Consome o challenge (uso único)
+        rsaChallenges.remove(idProspect);
+        log.controllers("Dupla verificação OK: AES-GCM(DH) ✅  RSA-OAEP proof ✅  id_prospect={}.", idProspect);
+
+        // 6. Retorna identidade Pi Network consolidada
+        String              accessToken = (String)              piAuthData.get("accessToken");
+        Map<String, Object> user        = (Map<String, Object>) piAuthData.get("user");
+
+        log.controllers("Pi Network consolidado. Usuário: {}.", user != null ? user.get("username") : "N/A");
+
         return Map.of(
             "status",   "AUTH_CONSOLIDATED",
             "identity", Map.of(
@@ -166,10 +249,26 @@ public class ServiceOAuthPi {
                 "sessionRef",  serverSession != null ? serverSession : Map.of()
             ),
             "permission", Map.of(
-                "oauth", true,
+                "oauth",     true,
                 "piNetwork", true,
-                "provider", "PI_NETWORK"
+                "provider",  "PI_NETWORK",
+                "dualSeal",  true   // AES-GCM(DH) + RSA-OAEP ambos verificados
             )
         );
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // UTIL: Comparação em tempo constante (timing-safe equals)
+    // ─────────────────────────────────────────────────────────────────────────
+    private static boolean timingSafeEquals(String a, String b) {
+        if (a == null || b == null) return false;
+        byte[] aBytes = a.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] bBytes = b.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        if (aBytes.length != bBytes.length) return false;
+        int result = 0;
+        for (int i = 0; i < aBytes.length; i++) {
+            result |= aBytes[i] ^ bBytes[i];
+        }
+        return result == 0;
     }
 }

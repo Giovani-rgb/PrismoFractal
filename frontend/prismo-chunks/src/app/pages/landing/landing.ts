@@ -243,12 +243,8 @@ export class Landing implements AfterViewInit, OnDestroy {
       console.log(`Authenticating token through third-party provider: ${this.currentProvider}`);
       
       try {
-        // Mock da chave pública RSA exigida pelo método run(). 
-        // Substitua pelo seu módulo gerador de chave RSA local quando integrar o crypto worker.
-        const mockClientPublicKeyRSA = 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA...';
-        
-        // Executa a esteira de conexão de forma assíncrona
-        const result = await this.oauthPiExecution.run(mockClientPublicKeyRSA);
+        // Executa a esteira OAuth — par RSA-OAEP gerado internamente a cada sessão
+        const result = await this.oauthPiExecution.run();
         console.log('Esteira OAuth processada com sucesso:', result);
       } catch (pipelineError) {
         console.error('Erro na execução da esteira do Prismo:', pipelineError);
