@@ -9,19 +9,23 @@ import java.security.SecureRandom;
 import java.util.Base64;
 
 public class EncryptionUtils {
-    private static final String ALGO = "AES/GCM/NoPadding";
-    private static final int TAG_LENGTH = 128;
-    private static final int IV_LENGTH = 12;
+    private static final String ALGO       = "AES/GCM/NoPadding";
+    private static final int    TAG_LENGTH = 128;
+    private static final int    IV_LENGTH  = 12;
 
     /**
      * Deriva uma chave AES-256 a partir de qualquer string via SHA-256.
-     * Garante sempre exatamente 32 bytes, independente do tamanho do segredo (ex: DH shared secret hex).
+     * Espelha exatamente o que o front faz:
+     *   SHA-256( TextEncoder.encode(secret) ) → importKey('raw', hash, 'AES-GCM')
      */
     private static byte[] deriveKey(String secret) throws Exception {
         return MessageDigest.getInstance("SHA-256")
                 .digest(secret.getBytes(StandardCharsets.UTF_8));
     }
 
+    // =========================================================================
+    // ENCRYPT — combina IV + ciphertext em um único Base64
+    // =========================================================================
     public static String encrypt(String data, String secret) throws Exception {
         byte[] iv = new byte[IV_LENGTH];
         new SecureRandom().nextBytes(iv);
@@ -31,10 +35,28 @@ public class EncryptionUtils {
         cipher.init(Cipher.ENCRYPT_MODE, keySpec, new GCMParameterSpec(TAG_LENGTH, iv));
 
         byte[] encrypted = cipher.doFinal(data.getBytes(StandardCharsets.UTF_8));
-        byte[] combined = new byte[IV_LENGTH + encrypted.length];
-        System.arraycopy(iv, 0, combined, 0, IV_LENGTH);
+        byte[] combined  = new byte[IV_LENGTH + encrypted.length];
+        System.arraycopy(iv,        0, combined, 0,         IV_LENGTH);
         System.arraycopy(encrypted, 0, combined, IV_LENGTH, encrypted.length);
 
         return Base64.getEncoder().encodeToString(combined);
+    }
+
+    // =========================================================================
+    // DECRYPT — recebe { iv: base64, ciphertext: base64 } separados
+    // Formato idêntico ao que o front produz com encryptJson():
+    //   iv         → btoa(String.fromCharCode(...iv_12_bytes))
+    //   ciphertext → btoa(String.fromCharCode(...aesgcm_output))
+    // =========================================================================
+    public static String decrypt(String ivBase64, String ciphertextBase64, String secret) throws Exception {
+        byte[] iv         = Base64.getDecoder().decode(ivBase64);
+        byte[] ciphertext = Base64.getDecoder().decode(ciphertextBase64);
+
+        SecretKeySpec keySpec = new SecretKeySpec(deriveKey(secret), "AES");
+        Cipher cipher = Cipher.getInstance(ALGO);
+        cipher.init(Cipher.DECRYPT_MODE, keySpec, new GCMParameterSpec(TAG_LENGTH, iv));
+
+        byte[] decrypted = cipher.doFinal(ciphertext);
+        return new String(decrypted, StandardCharsets.UTF_8);
     }
 }

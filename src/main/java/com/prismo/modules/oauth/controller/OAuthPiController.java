@@ -22,23 +22,41 @@ public class OAuthPiController {
     }
 
     // =========================================================================
-    // ROTA 1: POST /r — Validação de Handshake, Intenção e Emissão do Passaporte
+    // ROTA 1: POST /r — Decifragem do Envelope RSA-OAEP via Túnel DH
+    //
+    // Body esperado (AES-GCM DH-Signed):
+    //   { "iv": "<base64>", "ciphertext": "<base64>" }
+    //
+    // Payload decifrado pelo servidor:
+    //   { id_prospect, clientPublicKeyRSA, intent, ts }
+    //
+    // Header obrigatório: X-Freezer-Token (freezerToken da sessão DH ativa)
     // =========================================================================
     @PostMapping("/r")
     public ResponseEntity<?> handleOAuthHandshake(
-            @RequestBody(required = false) Map<String, String> clientPayload,
+            @RequestBody  Map<String, String> encryptedBody,
             @RequestHeader(value = "X-Freezer-Token", required = false) String freezerToken
     ) {
         try {
-            log.controllers("Interceptado tráfego na rota restrita de validação (/r).");
+            log.controllers("Envelope DH-Signed recebido na rota /r. Iniciando decifragem RSA.");
 
-            // TODO: Desenvolver lógica do zero:
-            // 1. Validar e recuperar sharedSecret via freezerToken
-            // 2. Decifrar envelope (iv e ciphertext)
-            // 3. Validar intenção operacional da Pi Network e id_prospect
-            // 4. Emitir e assinar passaporte de comunicação
+            if (freezerToken == null || freezerToken.isBlank()) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(Map.of("error", "X-Freezer-Token ausente: sessão DH não identificada."));
+            }
 
-            return ResponseEntity.ok(Map.of("status", "PROTOTYPE_R_OK"));
+            String iv         = encryptedBody.get("iv");
+            String ciphertext = encryptedBody.get("ciphertext");
+
+            if (iv == null || ciphertext == null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(Map.of("error", "Envelope malformado: campos 'iv' e 'ciphertext' são obrigatórios."));
+            }
+
+            Map<String, Object> result = service.handleOAuthPassportIssue(freezerToken, iv, ciphertext);
+
+            log.controllers("Passaporte OAuth emitido com sucesso via decifragem DH.");
+            return ResponseEntity.ok(result);
 
         } catch (RuntimeException e) {
             log.warning("Falha controlada no fluxo /r: {}", e.getMessage());
@@ -52,23 +70,42 @@ public class OAuthPiController {
     }
 
     // =========================================================================
-    // ROTA 2: POST /PiOAuth — Consolidação e Finalização de Login Pi Network
+    // ROTA 2: POST /PiOAuth — Consolidação Pi Network via Envelope DH-Signed
+    //
+    // Body esperado (AES-GCM DH-Signed):
+    //   { "iv": "<base64>", "ciphertext": "<base64>" }
+    //
+    // Payload decifrado pelo servidor:
+    //   { serverSessionRef, piAuthData: { accessToken, user }, ts }
+    //
+    // Header obrigatório: X-Freezer-Token
     // =========================================================================
     @PostMapping("/PiOAuth")
     public ResponseEntity<?> authenticateWithPiNetwork(
             HttpServletRequest request,
-            @RequestBody(required = false) Map<String, Object> piPayload,
+            @RequestBody  Map<String, String> encryptedBody,
             @RequestHeader(value = "X-Freezer-Token", required = false) String freezerToken
     ) {
         try {
-            log.controllers("Interceptado tráfego na rota de consolidação Pi Network (/PiOAuth).");
+            log.controllers("Envelope DH-Signed recebido na rota /PiOAuth. Consolidando autenticação Pi.");
 
-            // TODO: Desenvolver lógica do zero:
-            // 1. Processar tokens/payloads públicos vindos da SDK nativa da Pi
-            // 2. Aplicar regras de auditoria baseadas no freezerToken
-            // 3. Consolidar a autenticação na memória RAM ou persistência do Prismo
+            if (freezerToken == null || freezerToken.isBlank()) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(Map.of("error", "X-Freezer-Token ausente: sessão DH não identificada."));
+            }
 
-            return ResponseEntity.ok(Map.of("status", "PROTOTYPE_PIOAUTH_OK"));
+            String iv         = encryptedBody.get("iv");
+            String ciphertext = encryptedBody.get("ciphertext");
+
+            if (iv == null || ciphertext == null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(Map.of("error", "Envelope malformado: campos 'iv' e 'ciphertext' são obrigatórios."));
+            }
+
+            Map<String, Object> result = service.processPiNetworkAuthentication(freezerToken, iv, ciphertext);
+
+            log.controllers("Autenticação Pi Network consolidada com sucesso.");
+            return ResponseEntity.ok(result);
 
         } catch (RuntimeException e) {
             log.error("Falha controlada na consolidação /PiOAuth: {}", e.getMessage());
