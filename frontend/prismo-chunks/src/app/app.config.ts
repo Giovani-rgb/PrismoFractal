@@ -25,7 +25,23 @@ export const appConfig: ApplicationConfig = {
       provide: ErrorHandler,
       useValue: {
         handleError: (error: any) => {
-          console.log('%c❌ [RUNTIME ERROR]%c', 'background: #ef4444; color: #fff;', '', error);
+          // Suprime erros internos do Pi Network SDK que sobem pelo Zone.js
+          // O SDK faz XHR em Pi.init() que falha fora do Pi Browser —
+          // Zone.js captura o onerror do XHR e roteia aqui.
+          const stack   = error?.stack   ?? '';
+          const msg     = error?.message ?? '';
+          const url     = error?.config?.url ?? error?.config?.baseURL ?? '';
+          const isPiErr =
+            error?.name === 'AxiosError'   ||
+            stack.includes('pi-sdk.js')    ||
+            url.includes('minepi')         ||
+            msg.toLowerCase().includes('network error') && stack.includes('pi-sdk');
+
+          if (isPiErr) {
+            console.warn('[Pi SDK] Erro XHR interno suprimido (fora do Pi Browser):', msg || error?.name);
+            return;
+          }
+          console.error('%c❌ [RUNTIME ERROR]%c', 'background: #ef4444; color: #fff;', '', error);
         }
       }
     },

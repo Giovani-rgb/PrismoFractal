@@ -12,39 +12,29 @@
   <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" type="image/x-icon" href="favicon.ico">
-  <script src="https://sdk.minepi.com/pi-sdk.js"></script>
+  
 </head>
 <body>
-  
+  <script src="https://sdk.minepi.com/pi-sdk.js"></script>
   <app-root></app-root>
 
   
   <script>
-    // Handler global — suprime rejeições Axios internas do Pi SDK
-    // (o SDK dispara promises não capturadas quando fora do Pi Browser)
+    // Handler global — suprime rejeições Axios não capturadas do Pi SDK
     window.addEventListener('unhandledrejection', function(event) {
       var r = event.reason;
-      if (
-        r && (
-          r.name === 'AxiosError' ||
-          (typeof r.message === 'string' && r.message.toLowerCase().includes('axios')) ||
-          (r.config && r.config.baseURL && typeof r.config.baseURL === 'string' && r.config.baseURL.includes('minepi')) ||
-          (r.config && r.config.url && typeof r.config.url === 'string' && r.config.url.includes('minepi'))
-        )
-      ) {
+      if (r && (
+        r.name === 'AxiosError' ||
+        (typeof r.message === 'string' && r.message.toLowerCase().includes('network error')) ||
+        (r.config && typeof (r.config.url || r.config.baseURL) === 'string' &&
+          (r.config.url || r.config.baseURL || '').includes('minepi'))
+      )) {
         event.preventDefault();
-        console.warn('[Pi SDK] Axios interno suprimido (fora do Pi Browser):', r.message || r);
+        console.warn('[Pi SDK] Axios interno suprimido:', r.message || r.name);
       }
     });
-
-    // Inicializa o SDK em sandbox com proteção — não bloqueia o app se falhar
-    try {
-      Pi.init({ version: "2.0", sandbox: true });
-      window.__piSdkReady = true;
-    } catch(e) {
-      window.__piSdkReady = false;
-      console.warn('[Pi SDK] Falha na inicialização:', e.message);
-    }
+    // Pi.init() é chamado pelo Angular via NgZone.runOutsideAngular — não aqui
+    window.__piSdkReady = false;
   </script>
 
   <script src="https://cdn.jsdelivr.net/npm/eruda"></script>

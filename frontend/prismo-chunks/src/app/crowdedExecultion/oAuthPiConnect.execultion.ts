@@ -7,10 +7,6 @@ import { PrismoSessionState } from '../models/session.model';
 import { AppError, ErrorAccumulator } from '../models/error.model';
 import { encryptJson } from '../helpers/session.helpers';
 
-declare global {
-  interface Window { Pi: any; }
-}
-
 // ─────────────────────────────────────────────────────────────────
 // CONTRATOS E MODELOS
 // ─────────────────────────────────────────────────────────────────

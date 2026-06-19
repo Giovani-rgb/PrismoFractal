@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, NgZone } from '@angular/core';
 import { RouterOutlet, Router } from '@angular/router';
 import { Title } from '@angular/platform-browser';
 import { SessionCreationExecution } from './crowdedExecultion/sessionCreat.execultion';
@@ -21,9 +21,10 @@ export class App implements OnInit {
   private creationExecution = inject(SessionCreationExecution);
   private rehydrationExecution = inject(SessionRehydrationExecution);
   private context = inject(SessionContext);
-  private cacheService = inject(SessionCacheService); 
+  private cacheService = inject(SessionCacheService);
   private router = inject(Router);
   private titleService = inject(Title);
+  private ngZone = inject(NgZone);
 
   /**
    * Inicializa o Acumulador de Erros focado no contexto do ciclo de vida da App
@@ -35,13 +36,24 @@ export class App implements OnInit {
     this.titleService.setTitle(environment.appName);
 
     // --- INTEGRAÇÃO ECOSSISTEMA PI NETWORK ---
-    // Verifica se o SDK da Pi carregou globalmente no objeto window
-    const piApp = (window as any).Pi;
-    if (piApp) {
-      console.log('%c[App] 🌐 Pi Network SDK detectado com sucesso.', 'color: #eab308; font-weight: bold;');
-    } else {
-      console.warn('[App] ⚠️ window.Pi não encontrado. Certifique-se de estar rodando no Pi Browser.');
-    }
+    // Pi.init() é executado FORA da zona do Angular para que erros de XHR
+    // do SDK (AxiosError: Network Error) não sejam capturados pelo Zone.js
+    // e não subam até o ErrorHandler do Angular.
+    this.ngZone.runOutsideAngular(() => {
+      try {
+        if (typeof window.Pi?.init === 'function') {
+          window.Pi.init({ version: '2.0', sandbox: true });
+          window.__piSdkReady = true;
+          console.log('%c[App] 🌐 Pi SDK inicializado (fora da zona Angular).', 'color: #eab308; font-weight: bold;');
+        } else {
+          window.__piSdkReady = false;
+          console.warn('[App] ⚠️ window.Pi não disponível. Execute no Pi Browser para autenticação real.');
+        }
+      } catch (e: any) {
+        window.__piSdkReady = false;
+        console.warn('[App] ⚠️ Pi SDK: falha no init —', e?.message ?? e);
+      }
+    });
     // ─────────────────────────────────────────
 
     // 1. Verificação de persistência bruta
