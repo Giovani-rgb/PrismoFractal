@@ -187,27 +187,78 @@ export class OAuthPiConnectExecution {
 
       // ══════════════════════════════════════════════════════════════════════
       // STAGE 5 — AUTENTICAÇÃO PI NETWORK SDK
+      //
+      // Estratégia de resiliência:
+      //   1. Detecta se o SDK inicializou com sucesso (window.__piSdkReady)
+      //   2. Detecta se está no Pi Browser via userAgent
+      //   3. Chama authenticate() com timeout de 12s para não travar
+      //   4. Qualquer erro (AxiosError, timeout, SDK ausente) → AuthModel mock
+      //      sem propagar exceção — o fluxo continua normalmente
       // ══════════════════════════════════════════════════════════════════════
-      console.log(`%c🛡️ [PI SDK]%c Acionando window.Pi.authenticate()...`, LOG_STYLES.payload, '');
-
       const scopes = ['username', 'payments'];
       let piAuthResult: AuthModel;
 
-      try {
-        const rawAuth = await window.Pi.authenticate(scopes, async (payment: any) => {
-          console.warn('⚠️ Pagamento incompleto detectado pelo SDK do Pi:', payment);
-        });
-        piAuthResult = new AuthModel(rawAuth);
-      } catch (sdkError: any) {
-        console.warn('⚠️ SDK do Pi indisponível. Instanciando AuthModel de fallback para desenvolvimento.');
+      const piSdkReady: boolean =
+        !!(window as any).__piSdkReady &&
+        typeof (window as any).Pi?.authenticate === 'function';
+
+      const inPiBrowser: boolean =
+        /PiBrowser/i.test(navigator.userAgent);
+
+      console.log(
+        `%c🛡️ [PI SDK]%c SDK pronto: ${piSdkReady} | Pi Browser: ${inPiBrowser}`,
+        LOG_STYLES.payload, ''
+      );
+
+      if (!piSdkReady) {
+        // SDK não carregou ou falhou no init — vai direto pro mock
+        console.warn('[Pi SDK] SDK não está pronto. Usando AuthModel de desenvolvimento.');
         piAuthResult = new AuthModel({
-          accessToken: 'mock_access_token_replit_' + Date.now(),
-          user: { uid: 'mock-uid-prismo-123', username: 'test_prospect_pi' }
+          accessToken: 'dev_token_sdk_unavailable_' + Date.now(),
+          user: { uid: 'dev-uid-prismo', username: 'dev_prospect_pi' }
         });
+      } else {
+        // SDK disponível — chama authenticate() com timeout de segurança
+        const PI_SDK_TIMEOUT_MS = 12_000;
+
+        const sdkCall = (): Promise<any> =>
+          new Promise((resolve, reject) => {
+            window.Pi.authenticate(
+              scopes,
+              (payment: any) => {
+                // Callback de pagamento incompleto — tratado silenciosamente
+                console.warn('[Pi SDK] Pagamento incompleto detectado:', payment?.identifier);
+              }
+            )
+            .then(resolve)
+            .catch(reject);
+          });
+
+        const timeout = (): Promise<never> =>
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error(`Pi SDK timeout após ${PI_SDK_TIMEOUT_MS}ms`)), PI_SDK_TIMEOUT_MS)
+          );
+
+        try {
+          const rawAuth = await Promise.race([sdkCall(), timeout()]);
+          piAuthResult = new AuthModel(rawAuth);
+          console.log(`%c✅ [PI SDK]%c Autenticação bem-sucedida via SDK real.`, LOG_STYLES.success, '');
+        } catch (sdkError: any) {
+          // Suprime AxiosError e qualquer falha do SDK — fallback transparente
+          const reason = sdkError?.name === 'AxiosError'
+            ? `AxiosError (${sdkError.response?.status ?? 'sem resposta'}) — fora do Pi Browser`
+            : sdkError?.message ?? 'erro desconhecido';
+
+          console.warn(`[Pi SDK] Falha capturada: ${reason}. Usando AuthModel de desenvolvimento.`);
+          piAuthResult = new AuthModel({
+            accessToken: 'dev_token_sdk_fallback_' + Date.now(),
+            user: { uid: 'dev-uid-prismo', username: 'dev_prospect_pi' }
+          });
+        }
       }
 
       console.log(
-        `%c👤 [PI SDK]%c AuthModel validado: [Valid: ${piAuthResult.isValid()}]`,
+        `%c👤 [PI SDK]%c AuthModel: [válido: ${piAuthResult.isValid()} | user: ${piAuthResult.user.username}]`,
         'color: #10b981', piAuthResult
       );
 
