@@ -1,10 +1,9 @@
 package com.prismo.modules.oauth.controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.prismo.logger.AppLogger;
 import com.prismo.modules.oauth.service.ServiceOAuthPi;
+import com.prismo.modules.session.repository.ResponseQueries;
 import com.prismo.modules.session.service.CryptoHelper;
-import com.prismo.modules.session.util.EncryptionUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -16,31 +15,29 @@ import java.util.Map;
 @RequestMapping("/api/oauth")
 public class OAuthPiController {
 
-    private final ServiceOAuthPi service;
-    private final AppLogger       log;
-    private final CryptoHelper    cryptoHelper;
-    private final ObjectMapper    objectMapper;
+    private final ServiceOAuthPi  service;
+    private final AppLogger        log;
+    private final CryptoHelper     cryptoHelper;
+    private final ResponseQueries  responseQueries;
 
     public OAuthPiController(
-            ServiceOAuthPi service,
-            AppLogger       log,
-            CryptoHelper    cryptoHelper,
-            ObjectMapper    objectMapper
+            ServiceOAuthPi  service,
+            AppLogger        log,
+            CryptoHelper     cryptoHelper,
+            ResponseQueries  responseQueries
     ) {
-        this.service      = service;
-        this.log          = log;
-        this.cryptoHelper = cryptoHelper;
-        this.objectMapper = objectMapper;
+        this.service         = service;
+        this.log             = log;
+        this.cryptoHelper    = cryptoHelper;
+        this.responseQueries = responseQueries;
     }
 
     // =========================================================================
     // ROTA 1: POST /r
     //
-    // Recebe: { iv, ciphertext }  — AES-GCM(DH) cifrado pelo frontend
-    // Devolve: { iv, ciphertext } — AES-GCM(DH) cifrado pelo backend
-    //   Payload decifrado pelo cliente: { status, rsaEncryptedChallenge, serverSessionRef }
-    //   O rsaEncryptedChallenge já está cifrado com RSA-OAEP(clientPublicKey)
-    //   → dupla criptografia na camada do desafio
+    // Recebe: { iv, ciphertext } — AES-GCM(DH) cifrado pelo frontend
+    // Devolve: { iv, ciphertext } — AES-GCM(DH) cifrado pelo backend via ResponseQueries
+    //   Payload decifrado: { status, rsaEncryptedChallenge, serverSessionRef }
     // =========================================================================
     @PostMapping("/r")
     public ResponseEntity<?> handleOAuthHandshake(
@@ -63,14 +60,12 @@ public class OAuthPiController {
                         .body(Map.of("error", "Envelope malformado: 'iv' e 'ciphertext' obrigatórios."));
             }
 
-            Map<String, Object> result = service.handleOAuthPassportIssue(freezerToken, iv, ciphertext);
+            Map<String, Object> result       = service.handleOAuthPassportIssue(freezerToken, iv, ciphertext);
+            String              sharedSecret = cryptoHelper.getSecretByToken(freezerToken);
+            Map<String, String> envelope     = responseQueries.encryptGenericPayload(result, sharedSecret);
 
-            // Cifra a resposta com AES-GCM(DH) — mesmo sharedSecret da sessão
-            // O frontend decifra com decryptJson(response, sharedSecret)
-            Map<String, String> encryptedResponse = encryptResponse(result, freezerToken);
-
-            log.controllers("Passaporte /r emitido e cifrado com AES-GCM(DH).");
-            return ResponseEntity.ok(encryptedResponse);
+            log.controllers("Passaporte /r emitido e cifrado com AES-GCM(DH) via ResponseQueries.");
+            return ResponseEntity.ok(envelope);
 
         } catch (RuntimeException e) {
             log.warning("Falha controlada em /r: {}", e.getMessage());
@@ -86,9 +81,9 @@ public class OAuthPiController {
     // =========================================================================
     // ROTA 2: POST /PiOAuth
     //
-    // Recebe: { iv, ciphertext }  — AES-GCM(DH) + RSA proof cifrado pelo frontend
-    // Devolve: { iv, ciphertext } — AES-GCM(DH) cifrado pelo backend
-    //   Payload decifrado pelo cliente: { status, identity, permission }
+    // Recebe: { iv, ciphertext } — AES-GCM(DH) + RSA proof cifrado pelo frontend
+    // Devolve: { iv, ciphertext } — AES-GCM(DH) cifrado pelo backend via ResponseQueries
+    //   Payload decifrado: { status, identity, permission }
     // =========================================================================
     @PostMapping("/PiOAuth")
     public ResponseEntity<?> authenticateWithPiNetwork(
@@ -112,13 +107,12 @@ public class OAuthPiController {
                         .body(Map.of("error", "Envelope malformado: 'iv' e 'ciphertext' obrigatórios."));
             }
 
-            Map<String, Object> result = service.processPiNetworkAuthentication(freezerToken, iv, ciphertext);
+            Map<String, Object> result       = service.processPiNetworkAuthentication(freezerToken, iv, ciphertext);
+            String              sharedSecret = cryptoHelper.getSecretByToken(freezerToken);
+            Map<String, String> envelope     = responseQueries.encryptGenericPayload(result, sharedSecret);
 
-            // Cifra a resposta com AES-GCM(DH)
-            Map<String, String> encryptedResponse = encryptResponse(result, freezerToken);
-
-            log.controllers("Autenticação /PiOAuth consolidada e resposta cifrada com AES-GCM(DH).");
-            return ResponseEntity.ok(encryptedResponse);
+            log.controllers("Autenticação /PiOAuth consolidada e cifrada com AES-GCM(DH) via ResponseQueries.");
+            return ResponseEntity.ok(envelope);
 
         } catch (RuntimeException e) {
             log.error("Falha controlada em /PiOAuth: {}", e.getMessage());
@@ -129,17 +123,5 @@ public class OAuthPiController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Erro interno: " + e.getMessage()));
         }
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // UTIL: Serializa e cifra a resposta com AES-GCM(DH sharedSecret)
-    // ─────────────────────────────────────────────────────────────────────────
-    private Map<String, String> encryptResponse(Map<String, Object> data, String freezerToken) throws Exception {
-        String sharedSecret = cryptoHelper.getSecretByToken(freezerToken);
-        if (sharedSecret == null || sharedSecret.isBlank()) {
-            throw new RuntimeException("sharedSecret não encontrado para cifrar resposta.");
-        }
-        String json = objectMapper.writeValueAsString(data);
-        return EncryptionUtils.encryptToEnvelope(json, sharedSecret);
     }
 }

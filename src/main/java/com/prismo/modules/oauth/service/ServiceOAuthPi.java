@@ -187,6 +187,12 @@ public class ServiceOAuthPi {
             throw new RuntimeException("Verificação /PiOAuth: accessToken ausente no piAuthData.");
         }
 
+        // Log parcial do token para rastreio (prefixo 12 chars — não expõe o token completo)
+        String tokenPreview = accessToken.length() > 12
+                ? accessToken.substring(0, 12) + "…[" + accessToken.length() + " chars]"
+                : "[curto]";
+        log.queries("accessToken recebido no envelope: {}. Iniciando verificação Pi Platform.", tokenPreview);
+
         // — Camada 2: RSA proof —
         String idProspect = serverSession != null
                 ? (String) serverSession.get("validated_prospect") : null;

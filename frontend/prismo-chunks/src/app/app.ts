@@ -39,21 +39,17 @@ export class App implements OnInit {
     await new Promise<void>(resolve => {
       this.ngZone.runOutsideAngular(async () => {
         try {
-          // Pi.init() só faz sentido dentro do Pi Browser.
-          // Fora dele, o SDK faz XHR que falha → AxiosError via Zone.js.
-          const inPiBrowser = /PiBrowser/i.test(navigator.userAgent);
+          // window.Pi só existe dentro do Pi Browser (injetado nativamente).
+          // Fora do Pi Browser o objeto não existe → init nem é tentado.
+          const inPiBrowser = typeof window.Pi !== 'undefined' && window.Pi !== null;
 
-          if (inPiBrowser && typeof window.Pi?.init === 'function') {
+          if (inPiBrowser && typeof window.Pi.init === 'function') {
             await window.Pi.init({ version: '2.0', sandbox: true });
             window.__piSdkReady = true;
-            console.log('%c[App] 🌐 Pi SDK pronto (Pi Browser detectado).', 'color: #eab308; font-weight: bold;');
+            console.log('%c[App] 🌐 Pi SDK pronto (Pi Browser confirmado via window.Pi).', 'color: #eab308; font-weight: bold;');
           } else {
             window.__piSdkReady = false;
-            if (!inPiBrowser) {
-              console.warn('[App] ℹ️ Não está no Pi Browser — Pi.init() ignorado. authenticate() usará mock.');
-            } else {
-              console.warn('[App] ⚠️ window.Pi indisponível.');
-            }
+            console.warn('[App] ℹ️ window.Pi indisponível — não está no Pi Browser. authenticate() usará mock.');
           }
         } catch (e: any) {
           window.__piSdkReady = false;
