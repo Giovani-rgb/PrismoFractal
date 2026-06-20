@@ -15,10 +15,9 @@
   
 </head>
 <body>
-  <script src="https://sdk.minepi.com/pi-sdk.js"></script>
+  <script src="https://sdk.minepi.com/pi-sdk.js" defer></script>
   <app-root></app-root>
 
-  
   <script>
     // Handler global — suprime rejeições Axios não capturadas do Pi SDK
     window.addEventListener('unhandledrejection', function(event) {
@@ -37,9 +36,12 @@
     window.__piSdkReady = false;
   </script>
 
-  <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
+  <script src="https://cdn.jsdelivr.net/npm/eruda" defer></script>
   <script>
-    eruda.init();
+    // Usando um listener para garantir que o Eruda só inicialize após o script carregar
+    window.addEventListener('DOMContentLoaded', function() {
+      if (typeof eruda !== 'undefined') eruda.init();
+    });
   </script>
 
 </body>

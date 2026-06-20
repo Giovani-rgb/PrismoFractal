@@ -7,9 +7,9 @@ import { PrismoSessionState } from '../models/session.model';
 import { AppError, ErrorAccumulator } from '../models/error.model';
 import { encryptJson } from '../helpers/session.helpers';
 
-// ─────────────────────────────────────────────────────────────────
-// CONTRATOS E MODELOS
-// ─────────────────────────────────────────────────────────────────
+// ---> REFERÊNCIA VISUAL DE TIPOS DO SEU PROJETO
+/// <reference path="../types/pi-network.d.ts" />
+
 export type AuthResult = {
   accessToken: string;
   user: { uid: string; username: string };
@@ -21,7 +21,10 @@ export class AuthModel {
 
   constructor(data: Partial<AuthResult> | null | undefined) {
     this.accessToken = data?.accessToken || null;
-    this.user = { uid: data?.user?.uid || null, username: data?.user?.username || null };
+    this.user = { 
+      uid: data?.user?.uid || null, 
+      username: data?.user?.username || null 
+    };
   }
 
   isValid(): boolean {
@@ -38,47 +41,29 @@ const LOG_STYLES = {
   rsa:     'background: #7c3aed; color: #fff; padding: 2px 6px; border-radius: 3px; font-weight: bold;',
 };
 
-// Envelope AES-GCM produzido por encryptJson()
 interface DhSignedEnvelope {
   iv:         string;
   ciphertext: string;
 }
 
-// ─────────────────────────────────────────────────────────────────
-// HELPERS RSA-OAEP (SubtleCrypto — off-thread seguro)
-// ─────────────────────────────────────────────────────────────────
-
-/**
- * Gera um par de chaves RSA-OAEP 2048-bit com SHA-256.
- * Parâmetros idênticos ao que o Java espera:
- *   OAEPParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec("SHA-256"), DEFAULT)
- */
 async function generateRsaOaepKeyPair(): Promise<CryptoKeyPair> {
   return crypto.subtle.generateKey(
     {
       name:           'RSA-OAEP',
       modulusLength:  2048,
-      publicExponent: new Uint8Array([0x01, 0x00, 0x01]), // 65537
+      publicExponent: new Uint8Array([0x01, 0x00, 0x01]),
       hash:           'SHA-256'
     },
-    true,               // exportável (precisamos exportar a public key)
+    true,
     ['encrypt', 'decrypt']
   );
 }
 
-/**
- * Exporta a chave pública como SPKI → base64
- * (formato que o Java importa via X509EncodedKeySpec)
- */
 async function exportPublicKeyBase64(publicKey: CryptoKey): Promise<string> {
   const spki = await crypto.subtle.exportKey('spki', publicKey);
   return btoa(String.fromCharCode(...new Uint8Array(spki)));
 }
 
-/**
- * Decifra o challenge RSA-OAEP que o servidor enviou cifrado com a public key.
- * Só o detentor da private key consegue abrir.
- */
 async function decryptRsaChallenge(
   rsaEncryptedChallengeBase64: string,
   privateKey: CryptoKey
@@ -87,10 +72,6 @@ async function decryptRsaChallenge(
   const decrypted   = await crypto.subtle.decrypt({ name: 'RSA-OAEP' }, privateKey, cipherBytes);
   return new TextDecoder().decode(decrypted);
 }
-
-// ─────────────────────────────────────────────────────────────────
-// EXECUÇÃO PRINCIPAL
-// ─────────────────────────────────────────────────────────────────
 
 @Injectable({ providedIn: 'root' })
 export class OAuthPiConnectExecution {
@@ -113,7 +94,6 @@ export class OAuthPiConnectExecution {
       throw new AppError('Falha de Contexto: id_prospect indisponível.', 'VALIDATION_ERROR');
     }
 
-    // ── Camada 1: Shared Secret do túnel DH estabelecido na sessão ──────────
     const sharedSecret = sessionState.metadata?.[1]?.sharedSecret;
     if (!sharedSecret) {
       this.oauthContext.setOperation(OAuthTag.VOID);
@@ -125,24 +105,13 @@ export class OAuthPiConnectExecution {
     console.log(`%c🔑 [DH]%c Shared Secret DH ativo no contexto de sessão.`, LOG_STYLES.crypto, '');
 
     try {
-      // ══════════════════════════════════════════════════════════════════════
-      // STAGE 3 — GERAÇÃO DO PAR RSA-OAEP (Camada 2 de identidade)
-      // ══════════════════════════════════════════════════════════════════════
+      // STAGE 3 — RSA GENERATION
       console.log(`%c🔐 [RSA]%c Gerando par RSA-OAEP 2048-bit SHA-256...`, LOG_STYLES.rsa, '');
-
       const rsaKeyPair         = await generateRsaOaepKeyPair();
       const clientPublicKeyRSA = await exportPublicKeyBase64(rsaKeyPair.publicKey);
+      console.log(`%c🔐 [RSA]%c Par gerado. Chave pública SPKI pronta.`, LOG_STYLES.rsa, '');
 
-      console.log(
-        `%c🔐 [RSA]%c Par gerado. Chave pública SPKI (${clientPublicKeyRSA.length} chars) pronta.`,
-        LOG_STYLES.rsa, ''
-      );
-
-      // ══════════════════════════════════════════════════════════════════════
-      // STAGE 4 — ENVELOPE AES-GCM(DH) carregando a chave pública RSA
-      // Rota /api/oauth/r: servidor decifra AES-GCM, importa RSA public key,
-      //                    cifra um challenge com RSA-OAEP e devolve.
-      // ══════════════════════════════════════════════════════════════════════
+      // STAGE 4 — AES-GCM ENVELOPE
       const rawPayloadR = {
         id_prospect:       sessionState.data.id_prospect,
         clientPublicKeyRSA,
@@ -155,14 +124,9 @@ export class OAuthPiConnectExecution {
 
       this.oauthContext.setOperation(OAuthTag.VOID);
       const serverResponse = await this.orchestrator.executeAssignment(envelopeStage4);
+      console.log(`%c📥 [STAGE 4 RES]%c Passaporte recebido de "/r".`, 'color: #10b981');
 
-      console.log(`%c📥 [STAGE 4 RES]%c Passaporte recebido de "/r":`, 'color: #10b981', serverResponse);
-
-      // ══════════════════════════════════════════════════════════════════════
-      // STAGE 4.5 — DECIFRAGEM DO CHALLENGE RSA-OAEP
-      // O servidor cifrou um challenge com a public key RSA do cliente.
-      // Só quem tem a private key consegue decifrar — prova de posse.
-      // ══════════════════════════════════════════════════════════════════════
+      // STAGE 4.5 — CHALLENGE DECRYPTION
       const rsaEncryptedChallenge: string | undefined =
         serverResponse?.rsaEncryptedChallenge ?? serverResponse?.data?.rsaEncryptedChallenge;
 
@@ -173,48 +137,63 @@ export class OAuthPiConnectExecution {
         );
       }
 
-      console.log(`%c🔓 [RSA]%c Decifrando challenge RSA-OAEP com a private key local...`, LOG_STYLES.rsa, '');
+      console.log(`%c🔓 [RSA]%c Decifrando challenge RSA-OAEP...`, LOG_STYLES.rsa, '');
       const rsaProof = await decryptRsaChallenge(rsaEncryptedChallenge, rsaKeyPair.privateKey);
-
-      console.log(
-        `%c✅ [RSA]%c Challenge decifrado. Canal RSA-OAEP confirmado. Prova de posse estabelecida.`,
-        LOG_STYLES.rsa, ''
-      );
+      console.log(`%c✅ [RSA]%c Challenge decifrado. Prova de posse estabelecida.`, LOG_STYLES.rsa, '');
 
       // ══════════════════════════════════════════════════════════════════════
-      // STAGE 5 — AUTENTICAÇÃO PI NETWORK SDK
-      //
-      // Estratégia de resiliência:
-      //   1. Detecta se o SDK inicializou com sucesso (window.__piSdkReady)
-      //   2. Detecta se está no Pi Browser via userAgent
-      //   3. Chama authenticate() com timeout de 12s para não travar
-      //   4. Qualquer erro (AxiosError, timeout, SDK ausente) → AuthModel mock
-      //      sem propagar exceção — o fluxo continua normalmente
+      // STAGE 5 — EXTRAÇÃO DO TOKEN INTERNO DA MUTAÇÃO
       // ══════════════════════════════════════════════════════════════════════
       const scopes = ['username', 'payments'];
       let piAuthResult: AuthModel;
 
-      const piSdkReady: boolean =
-        !!(window as any).__piSdkReady &&
-        typeof (window as any).Pi?.authenticate === 'function';
+      console.log('%c🔍 [DEBUG REAL-TIME] Analisando sub-estruturas de window.Pi:', LOG_STYLES.debug);
+      console.dir(window.Pi);
 
-      const inPiBrowser: boolean =
-        /PiBrowser/i.test(navigator.userAgent);
+      const piInstance = window.Pi as any;
+      
+      let isSdkInitialized = !!window.__piSdkReady;
+      if (piInstance && typeof piInstance.checkInitialized === 'function') {
+        try { isSdkInitialized = piInstance.checkInitialized() || isSdkInitialized; } catch (e) {}
+      }
+
+      const inPiBrowser: boolean = /PiBrowser/i.test(navigator.userAgent);
+
+      // Busca o token de forma profunda nos locais apontados pela mutação do objeto api
+      const extractedToken: string | null = 
+        piInstance?.accessToken || 
+        piInstance?.api?.accessToken || 
+        piInstance?.Wallet?.api?.accessToken || 
+        null;
+
+      const hasImplicitAuth = !!(extractedToken || piInstance?.consentedScopes);
 
       console.log(
-        `%c🛡️ [PI SDK]%c SDK pronto: ${piSdkReady} | Pi Browser: ${inPiBrowser}`,
+        `%c🛡️ [PI SDK]%c Inicializado: ${isSdkInitialized} | Token Capturado: ${!!extractedToken} | PiBrowser: ${inPiBrowser}`,
         LOG_STYLES.payload, ''
       );
 
-      if (!piSdkReady) {
-        // SDK não carregou ou falhou no init — vai direto pro mock
-        console.warn('[Pi SDK] SDK não está pronto. Usando AuthModel de desenvolvimento.');
+      // CASO 5.A: Token localizado com sucesso dentro das ramificações do objeto api
+      if (hasImplicitAuth) {
+        console.log(`%c✅ [PI SDK]%c Extraindo Token do sub-objeto 'api'. Ignorando handshake redundante.`, LOG_STYLES.success, '');
         piAuthResult = new AuthModel({
-          accessToken: 'dev_token_sdk_unavailable_' + Date.now(),
+          accessToken: extractedToken || 'implicit_active_token',
+          user: { 
+            uid: piInstance?.user?.uid || 'pi-uid-implicit', 
+            username: piInstance?.user?.username || 'pi_user_implicit' 
+          }
+        });
+      } 
+      // CASO 5.B: Ambiente de desenvolvimento convencional externo
+      else if (!isSdkInitialized && !inPiBrowser) {
+        console.warn('[Pi SDK] SDK indisponível. Aplicando fallback de simulação.');
+        piAuthResult = new AuthModel({
+          accessToken: '3E8Cy9Rd1KKD_KndoO9xL02fuifkimVkb1p-WoebRpk' + Date.now(),
           user: { uid: 'dev-uid-prismo', username: 'dev_prospect_pi' }
         });
-      } else {
-        // SDK disponível — chama authenticate() com timeout de segurança
+      } 
+      // CASO 5.C: Handshake explícito por promessa clássica
+      else {
         const PI_SDK_TIMEOUT_MS = 12_000;
 
         const sdkCall = (): Promise<any> =>
@@ -222,8 +201,7 @@ export class OAuthPiConnectExecution {
             window.Pi.authenticate(
               scopes,
               (payment: any) => {
-                // Callback de pagamento incompleto — tratado silenciosamente
-                console.warn('[Pi SDK] Pagamento incompleto detectado:', payment?.identifier);
+                console.warn('[Pi SDK] Transação pendente interceptada:', payment?.identifier);
               }
             )
             .then(resolve)
@@ -238,14 +216,9 @@ export class OAuthPiConnectExecution {
         try {
           const rawAuth = await Promise.race([sdkCall(), timeout()]);
           piAuthResult = new AuthModel(rawAuth);
-          console.log(`%c✅ [PI SDK]%c Autenticação bem-sucedida via SDK real.`, LOG_STYLES.success, '');
+          console.log(`%c✅ [PI SDK]%c Autenticação homologada via handshake de fallback.`, LOG_STYLES.success, '');
         } catch (sdkError: any) {
-          // Suprime AxiosError e qualquer falha do SDK — fallback transparente
-          const reason = sdkError?.name === 'AxiosError'
-            ? `AxiosError (${sdkError.response?.status ?? 'sem resposta'}) — fora do Pi Browser`
-            : sdkError?.message ?? 'erro desconhecido';
-
-          console.warn(`[Pi SDK] Falha capturada: ${reason}. Usando AuthModel de desenvolvimento.`);
+          console.warn(`[Pi SDK] Falha no handshake. Ativando mock-recovery.`);
           piAuthResult = new AuthModel({
             accessToken: 'dev_token_sdk_fallback_' + Date.now(),
             user: { uid: 'dev-uid-prismo', username: 'dev_prospect_pi' }
@@ -254,46 +227,28 @@ export class OAuthPiConnectExecution {
       }
 
       console.log(
-        `%c👤 [PI SDK]%c AuthModel: [válido: ${piAuthResult.isValid()} | user: ${piAuthResult.user.username}]`,
+        `%c👤 [PI SDK]%c AuthModel finalizado [user: ${piAuthResult.user.username}]`,
         'color: #10b981', piAuthResult
       );
 
-      // ══════════════════════════════════════════════════════════════════════
-      // STAGE 6 — PAYLOAD SELADO PELAS DUAS CRIPTOGRAFIAS
-      //
-      // Camada 1 (DH): AES-GCM(sharedSecret) → envelopa tudo
-      // Camada 2 (RSA): rsaProof = challenge decifrado com private key RSA
-      //                 → prova ao servidor que o cliente é dono da chave RSA
-      //
-      // O servidor valida ambas:
-      //   1. Decifra AES-GCM(DH)  → abre o envelope
-      //   2. Verifica rsaProof    → confirma posse da private key RSA
-      //   Só então aceita os dados da Pi Network.
-      // ══════════════════════════════════════════════════════════════════════
+      // STAGE 6 — DOUBLE-SEALED ENVELOPE
       const rawStage6 = {
         serverSessionRef: serverResponse.serverSessionRef ?? serverResponse.data ?? serverResponse,
         piAuthData: {
           accessToken: piAuthResult.accessToken,
           user:        piAuthResult.user
         },
-        rsaProof,     // Challenge decifrado com RSA private key — Camada 2
+        rsaProof,
         ts:           Date.now()
       };
 
-      console.log(`%c🔒 [STAGE 6]%c Selando payload Pi Network com AES-GCM(DH) + RSA proof...`, LOG_STYLES.debug, '');
+      console.log(`%c🔒 [STAGE 6]%c Selando payload final com AES-GCM(DH) + RSA...`, LOG_STYLES.debug, '');
       const envelopeStage6: DhSignedEnvelope = await encryptJson(rawStage6, sharedSecret);
-
-      console.log(
-        `%c🔐 [STAGE 6]%c Payload duplamente selado. IV AES: ${envelopeStage6.iv.slice(0, 8)}... | RSA proof: ${rsaProof.slice(0, 8)}...`,
-        LOG_STYLES.crypto, ''
-      );
 
       this.oauthContext.setOperation(OAuthTag.OAUTH);
       const serverFinalResponse = await this.orchestrator.executeAssignment(envelopeStage6);
+      console.log(`%c📥 [STAGE 6 RES]%c Resposta final recebida com sucesso.`, 'color: #10b981');
 
-      console.log(`%c📥 [STAGE 6 RES]%c Resposta final recebida:`, 'color: #10b981', serverFinalResponse);
-
-      // ── Finalização ──────────────────────────────────────────────────────
       console.log(
         `%c🚀 [SUCCESS]%c Integração Pi Network selada. AES-GCM(DH) ✅  RSA-OAEP ✅`,
         LOG_STYLES.success, ''
@@ -317,14 +272,12 @@ export class OAuthPiConnectExecution {
 
   private handleExecutionError(err: any): void {
     let appError: AppError;
-
     if (err instanceof AppError) {
       appError = err;
     } else {
       const msg = err?.error?.error || err?.message || 'Falha crítica na esteira OAuth';
       appError = new AppError(msg, 'CLIENT_ERROR', err?.status || 500, { rawError: err });
     }
-
     console.error(`%c❌ [CRITICAL]%c ${appError.message}`, LOG_STYLES.error, '');
     this.errorTracker.add(appError);
     throw appError;

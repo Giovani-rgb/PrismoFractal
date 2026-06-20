@@ -77,7 +77,8 @@ public class SecurityConfig {
             "https://*.replit.dev",
             "https://*.spock.replit.dev",
             "https://*.replit.app",
-            "http://localhost:*"
+            "http://localhost:*",
+            "https://sandbox.minepi.com/mobile-app-ui/app/prismo"
         ));
 
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
