@@ -59,3 +59,24 @@ export async function decryptData(data: EncryptedPayload, secret: string): Promi
 
   return JSON.parse(DECODER.decode(decryptedBuffer)) as Session;
 }
+
+/**
+ * Decifra um envelope AES-GCM { iv, ciphertext } retornado pelo backend
+ * e retorna o objeto JSON parseado.
+ * Espelha exatamente encryptToEnvelope() do Java:
+ *   key = SHA-256(sharedSecret) → AES-256-GCM decrypt
+ */
+export async function decryptJson<T = any>(envelope: EncryptedPayload, secret: string): Promise<T> {
+  const cryptoKey = await deriveKey(secret, ['decrypt']);
+
+  const iv         = Uint8Array.from(atob(envelope.iv),         c => c.charCodeAt(0));
+  const ciphertext = Uint8Array.from(atob(envelope.ciphertext), c => c.charCodeAt(0));
+
+  const decryptedBuffer = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv },
+    cryptoKey,
+    ciphertext
+  );
+
+  return JSON.parse(DECODER.decode(decryptedBuffer)) as T;
+}

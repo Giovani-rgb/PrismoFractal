@@ -24,7 +24,7 @@ public class EncryptionUtils {
     }
 
     // =========================================================================
-    // ENCRYPT — combina IV + ciphertext em um único Base64
+    // ENCRYPT — combina IV + ciphertext em um único Base64 (legacy)
     // =========================================================================
     public static String encrypt(String data, String secret) throws Exception {
         byte[] iv = new byte[IV_LENGTH];
@@ -40,6 +40,27 @@ public class EncryptionUtils {
         System.arraycopy(encrypted, 0, combined, IV_LENGTH, encrypted.length);
 
         return Base64.getEncoder().encodeToString(combined);
+    }
+
+    // =========================================================================
+    // ENCRYPT TO ENVELOPE — retorna { iv: base64, ciphertext: base64 }
+    // Formato idêntico ao que encryptJson() produz no Angular/SubtleCrypto.
+    // Usado para cifrar respostas do servidor que o frontend vai decifrar.
+    // =========================================================================
+    public static java.util.Map<String, String> encryptToEnvelope(String data, String secret) throws Exception {
+        byte[] iv = new byte[IV_LENGTH];
+        new SecureRandom().nextBytes(iv);
+
+        SecretKeySpec keySpec = new SecretKeySpec(deriveKey(secret), "AES");
+        Cipher cipher = Cipher.getInstance(ALGO);
+        cipher.init(Cipher.ENCRYPT_MODE, keySpec, new GCMParameterSpec(TAG_LENGTH, iv));
+
+        byte[] encrypted = cipher.doFinal(data.getBytes(StandardCharsets.UTF_8));
+
+        return java.util.Map.of(
+            "iv",         Base64.getEncoder().encodeToString(iv),
+            "ciphertext", Base64.getEncoder().encodeToString(encrypted)
+        );
     }
 
     // =========================================================================

@@ -5,7 +5,7 @@ import { OauthContext } from '../context/oauth.context';
 import { OAuthTag } from '../models/oauth.model';
 import { PrismoSessionState } from '../models/session.model';
 import { AppError, ErrorAccumulator } from '../models/error.model';
-import { encryptJson } from '../helpers/session.helpers';
+import { encryptJson, decryptJson } from '../helpers/session.helpers';
 
 // ---> REFERÊNCIA VISUAL DE TIPOS DO SEU PROJETO
 /// <reference path="../types/pi-network.d.ts" />
@@ -123,8 +123,11 @@ export class OAuthPiConnectExecution {
       const envelopeStage4: DhSignedEnvelope = await encryptJson(rawPayloadR, sharedSecret);
 
       this.oauthContext.setOperation(OAuthTag.VOID);
-      const serverResponse = await this.orchestrator.executeAssignment(envelopeStage4);
-      console.log(`%c📥 [STAGE 4 RES]%c Passaporte recebido de "/r".`, 'color: #10b981');
+      const encryptedR = await this.orchestrator.executeAssignment(envelopeStage4);
+      // Backend devolve { iv, ciphertext } — decifra com o sharedSecret DH da sessão
+      console.log(`%c🔓 [STAGE 4 RES]%c Decifrando resposta cifrada de "/r"...`, LOG_STYLES.crypto, '');
+      const serverResponse = await decryptJson(encryptedR, sharedSecret);
+      console.log(`%c📥 [STAGE 4 RES]%c Passaporte recebido e decifrado:`, 'color: #10b981', serverResponse);
 
       // STAGE 4.5 — CHALLENGE DECRYPTION
       const rsaEncryptedChallenge: string | undefined =
@@ -246,16 +249,19 @@ export class OAuthPiConnectExecution {
       const envelopeStage6: DhSignedEnvelope = await encryptJson(rawStage6, sharedSecret);
 
       this.oauthContext.setOperation(OAuthTag.OAUTH);
-      const serverFinalResponse = await this.orchestrator.executeAssignment(envelopeStage6);
-      console.log(`%c📥 [STAGE 6 RES]%c Resposta final recebida com sucesso.`, 'color: #10b981');
+      const encryptedFinal = await this.orchestrator.executeAssignment(envelopeStage6);
+      // Backend devolve { iv, ciphertext } — decifra com o sharedSecret DH da sessão
+      console.log(`%c🔓 [STAGE 6 RES]%c Decifrando resposta cifrada de "/PiOAuth"...`, LOG_STYLES.crypto, '');
+      const serverFinalResponse = await decryptJson(encryptedFinal, sharedSecret);
+      console.log(`%c📥 [STAGE 6 RES]%c Identidade Pi Network decifrada:`, 'color: #10b981', serverFinalResponse);
 
       console.log(
-        `%c🚀 [SUCCESS]%c Integração Pi Network selada. AES-GCM(DH) ✅  RSA-OAEP ✅`,
+        `%c🚀 [SUCCESS]%c Canal selado: AES-GCM(DH) ✅  RSA-OAEP ✅  Pi Platform ✅`,
         LOG_STYLES.success, ''
       );
 
       this.oauthContext.setOAuthData(
-        serverFinalResponse.data || serverFinalResponse,
+        serverFinalResponse.identity || serverFinalResponse,
         serverFinalResponse.permission || null
       );
 
