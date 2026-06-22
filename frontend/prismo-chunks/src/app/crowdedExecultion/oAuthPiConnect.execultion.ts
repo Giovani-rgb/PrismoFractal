@@ -1,3 +1,4 @@
+/// <reference path="../../types/pi-network.d.ts" />
 import { Injectable, inject } from '@angular/core';
 import { OAuthPipelineOrchestrator } from '../services-workers/OAuthPipelineOrquestrator';
 import { SessionContext } from '../context/session.context';
@@ -6,9 +7,6 @@ import { OAuthTag } from '../models/oauth.model';
 import { PrismoSessionState } from '../models/session.model';
 import { AppError, ErrorAccumulator } from '../models/error.model';
 import { encryptJson, decryptJson } from '../helpers/session.helpers';
-
-// ---> REFERÊNCIA VISUAL DE TIPOS DO SEU PROJETO
-/// <reference path="../types/pi-network.d.ts" />
 
 export type AuthResult = {
   accessToken: string;
@@ -145,96 +143,156 @@ export class OAuthPiConnectExecution {
       console.log(`%c✅ [RSA]%c Challenge decifrado. Prova de posse estabelecida.`, LOG_STYLES.rsa, '');
 
       // ══════════════════════════════════════════════════════════════════════
-      // STAGE 5 — EXTRAÇÃO DO TOKEN INTERNO DA MUTAÇÃO
+      // STAGE 5 — EXTRAÇÃO DO TOKEN INTERNO DA MUTAÇÃO / HANDSHAKE EXPÍCITO
       // ══════════════════════════════════════════════════════════════════════
-      const scopes = ['username', 'payments'];
+      const scopes = ['username', 'payments', 'wallet_address'];
       let piAuthResult: AuthModel;
 
       console.log('%c🔍 [DEBUG REAL-TIME] Analisando sub-estruturas de window.Pi:', LOG_STYLES.debug);
       console.dir(window.Pi);
 
       const piInstance = window.Pi as any;
-      
+
       let isSdkInitialized = !!window.__piSdkReady;
       if (piInstance && typeof piInstance.checkInitialized === 'function') {
         try { isSdkInitialized = piInstance.checkInitialized() || isSdkInitialized; } catch (e) {}
       }
 
-      const inPiBrowser: boolean = /PiBrowser/i.test(navigator.userAgent);
+      const hasPiObject = typeof window.Pi !== 'undefined' && window.Pi !== null;
 
-      // Busca o token de forma profunda nos locais apontados pela mutação do objeto api
+      // Busca o token ativo de forma profunda nos locais apontados pela mutação do objeto
       const extractedToken: string | null = 
         piInstance?.accessToken || 
         piInstance?.api?.accessToken || 
         piInstance?.Wallet?.api?.accessToken || 
         null;
 
-      const hasImplicitAuth = !!(extractedToken || piInstance?.consentedScopes);
+      // Se já temos um token real na janela (usuário já deu consentimento prévio nesta sessão)
+      const hasImplicitAuth = !!(extractedToken && extractedToken !== 'implicit_active_token');
 
       console.log(
-        `%c🛡️ [PI SDK]%c Inicializado: ${isSdkInitialized} | Token Capturado: ${!!extractedToken} | PiBrowser: ${inPiBrowser}`,
+        `%c🛡️ [PI SDK]%c Inicializado: ${isSdkInitialized} | Token Presente na Janela: ${!!extractedToken} | PiBrowser Ativo: ${hasPiObject}`,
         LOG_STYLES.payload, ''
       );
 
-      // CASO 5.A: Token localizado com sucesso dentro das ramificações do objeto api
-      if (hasImplicitAuth) {
-        console.log(`%c✅ [PI SDK]%c Extraindo Token do sub-objeto 'api'. Ignorando handshake redundante.`, LOG_STYLES.success, '');
+      // CASO 5.A: O Token já existe de forma implícita no objeto global. Ignora handshake redundante para evitar rejeição do Sandbox!
+      if (hasPiObject && hasImplicitAuth) {
+        console.log(`%c✅ [PI SDK]%c Token já ativo detectado na janela. Ignorando handshake redundante para evitar erros de Sandbox.`, LOG_STYLES.success, '');
         piAuthResult = new AuthModel({
-          accessToken: extractedToken || 'implicit_active_token',
+          accessToken: extractedToken,
           user: { 
-            uid: piInstance?.user?.uid || 'pi-uid-implicit', 
-            username: piInstance?.user?.username || 'pi_user_implicit' 
+            uid: piInstance?.user?.uid || piInstance?.api?.user?.uid || 'pi-uid-implicit', 
+            username: piInstance?.user?.username || piInstance?.api?.user?.username || 'pi_user_implicit' 
           }
         });
-      } 
-      // CASO 5.B: Ambiente de desenvolvimento convencional externo
-      else if (!isSdkInitialized && !inPiBrowser) {
-        console.warn('[Pi SDK] SDK indisponível. Aplicando fallback de simulação.');
+      }
+      // CASO 5.B: Fora do ambiente Pi Browser (Ambiente de Desenvolvimento convencional externo)
+      else if (!isSdkInitialized && !hasPiObject) {
+        console.warn('[Pi SDK] SDK indisponível na Janela. Aplicando fallback de simulação local.');
         piAuthResult = new AuthModel({
           accessToken: '3E8Cy9Rd1KKD_KndoO9xL02fuifkimVkb1p-WoebRpk' + Date.now(),
           user: { uid: 'dev-uid-prismo', username: 'dev_prospect_pi' }
         });
       } 
-      // CASO 5.C: Handshake explícito por promessa clássica
+      // CASO 5.C: Dentro do Pi Browser mas precisa forçar o login (Primeiro acesso ou token limpo)
       else {
-        const PI_SDK_TIMEOUT_MS = 12_000;
+        const PI_SDK_TIMEOUT_MS = 25_000;
+
+        console.log(`%c⚡ [PI SDK]%c Invoca authenticate() para escopos novos: ${scopes.join(', ')}`, LOG_STYLES.debug, '');
 
         const sdkCall = (): Promise<any> =>
           new Promise((resolve, reject) => {
-            window.Pi.authenticate(
-              scopes,
-              (payment: any) => {
-                console.warn('[Pi SDK] Transação pendente interceptada:', payment?.identifier);
-              }
-            )
-            .then(resolve)
-            .catch(reject);
+            try {
+              window.Pi.authenticate(
+                scopes,
+                (payment: any) => {
+                  console.warn('%c[Pi SDK] ⚠️ Transação pendente interceptada no fluxo de Auth:', LOG_STYLES.debug, payment?.identifier);
+                }
+              )
+              .then((authResponse: any) => {
+                console.log('%c📥 [PI SDK HANDSHAKE SUCCESS]%c Consentimento homologado:', LOG_STYLES.success, authResponse);
+                resolve(authResponse);
+              })
+              .catch((err: any) => {
+                reject(err);
+              });
+            } catch (fatalError) {
+              reject(fatalError);
+            }
           });
 
         const timeout = (): Promise<never> =>
           new Promise((_, reject) =>
-            setTimeout(() => reject(new Error(`Pi SDK timeout após ${PI_SDK_TIMEOUT_MS}ms`)), PI_SDK_TIMEOUT_MS)
+            setTimeout(() => reject(new Error(`Pi SDK timeout esperando interação no modal`)), PI_SDK_TIMEOUT_MS)
           );
 
         try {
           const rawAuth = await Promise.race([sdkCall(), timeout()]);
+          if (!rawAuth || !rawAuth.accessToken) throw new Error("Resposta vazia do handshake.");
+
           piAuthResult = new AuthModel(rawAuth);
-          console.log(`%c✅ [PI SDK]%c Autenticação homologada via handshake de fallback.`, LOG_STYLES.success, '');
+          console.log(`%c✅ [PI SDK]%c Autenticação homologada via handshake assíncrono.`, LOG_STYLES.success, '');
         } catch (sdkError: any) {
-          console.warn(`[Pi SDK] Falha no handshake. Ativando mock-recovery.`);
-          piAuthResult = new AuthModel({
-            accessToken: 'dev_token_sdk_fallback_' + Date.now(),
-            user: { uid: 'dev-uid-prismo', username: 'dev_prospect_pi' }
-          });
+          console.warn(`%c⚠️ [PI SDK CATCH]%c Handshake rejeitado ou erro fantasma do Sandbox. Verificando mutação residual...`, LOG_STYLES.debug, '');
+
+          // PLANO DE CONTINGÊNCIA: Se deu o erro que você capturou, mas o token real está lá, nós salvamos a operação
+          const recoveryToken = piInstance?.accessToken || piInstance?.api?.accessToken || piInstance?.Wallet?.api?.accessToken;
+
+          if (recoveryToken) {
+            console.log(`%c🛡️ [RECOVERY SUCCESS]%c Ignorando erro do SDK; Token verídico extraído com sucesso pós-consentimento!`, LOG_STYLES.success, '');
+            piAuthResult = new AuthModel({
+              accessToken: recoveryToken,
+              user: { 
+                uid: piInstance?.user?.uid || piInstance?.api?.user?.uid || 'pi-uid-recovered', 
+                username: piInstance?.user?.username || piInstance?.api?.user?.username || 'pi_user_recovered' 
+              }
+            });
+          } else {
+            throw new AppError(`Falha de autenticação real no ecossistema Pi: ${sdkError?.message || 'Authentication failed'}`, 'AUTH_ERROR');
+          }
         }
       }
 
-      console.log(
-        `%c👤 [PI SDK]%c AuthModel finalizado [user: ${piAuthResult.user.username}]`,
-        'color: #10b981', piAuthResult
-      );
 
-      // STAGE 6 — DOUBLE-SEALED ENVELOPE
+
+      
+
+
+                  
+      
+
+      // ══════════════════════════════════════════════════════════════════════
+      // STAGE 6 — DOUBLE-SEALED ENVELOPE (VALIDAÇÃO & CIFRAGEM)
+      // ══════════════════════════════════════════════════════════════════════
+      const tokenToValidate = piAuthResult.accessToken;
+      const previewToken = tokenToValidate 
+        ? `${tokenToValidate.substring(0, 10)}... [Tamanho: ${tokenToValidate.length}]` 
+        : '⚠️ NULO/VAZIO';
+
+      if (!tokenToValidate || tokenToValidate.includes('fallback') || tokenToValidate.startsWith('3E8Cy9Rd1')) {
+        console.log(
+          `%c⚠️ [PI-TRACK] CUIDADO %c O token atual é um MOCK ou AMBIENTE DE DEV: "${previewToken}"`,
+          'background: #f59e0b; color: #000; font-weight: bold; padding: 2px 6px; border-radius: 3px;',
+          'color: #f59e0b;'
+        );
+      } else {
+        console.log(
+          `%c🚀 [PI-TRACK] CAPTURADO %c Pronto para envelopar. Token Real: %c"${previewToken}"`,
+          'background: #10b981; color: #fff; font-weight: bold; padding: 2px 6px; border-radius: 3px;',
+          'color: #fff;',
+          'color: #3b82f6; font-family: monospace; font-weight: bold;'
+        );
+      }
+
+      console.log(`%c📦 [PI-TRACK PAYLOAD]%c Estrutura de autenticação consolidada:`, LOG_STYLES.payload);
+      console.table({
+        id_prospect: sessionState.data.id_prospect,
+        token_preview: previewToken,
+        uid: piAuthResult.user.uid || 'NULO',
+        username: piAuthResult.user.username || 'NULO',
+        rsa_proof_length: rsaProof?.length || 0
+      });
+
       const rawStage6 = {
         serverSessionRef: serverResponse.serverSessionRef ?? serverResponse.data ?? serverResponse,
         piAuthData: {
@@ -250,7 +308,6 @@ export class OAuthPiConnectExecution {
 
       this.oauthContext.setOperation(OAuthTag.OAUTH);
       const encryptedFinal = await this.orchestrator.executeAssignment(envelopeStage6);
-      // Backend devolve { iv, ciphertext } — decifra com o sharedSecret DH da sessão
       console.log(`%c🔓 [STAGE 6 RES]%c Decifrando resposta cifrada de "/PiOAuth"...`, LOG_STYLES.crypto, '');
       const serverFinalResponse = await decryptJson(encryptedFinal, sharedSecret);
       console.log(`%c📥 [STAGE 6 RES]%c Identidade Pi Network decifrada:`, 'color: #10b981', serverFinalResponse);

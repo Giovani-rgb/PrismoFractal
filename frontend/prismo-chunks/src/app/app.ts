@@ -1,3 +1,4 @@
+/// <reference path="../types/pi-network.d.ts" />
 import { Component, inject, OnInit, NgZone } from '@angular/core';
 import { RouterOutlet, Router } from '@angular/router';
 import { Title } from '@angular/platform-browser';
@@ -32,19 +33,19 @@ export class App implements OnInit {
     this.printPrismoBanner();
     this.titleService.setTitle(environment.appName);
 
+
     // --- INTEGRAÇÃO ECOSSISTEMA PI NETWORK ---
-    // Pi.init() é ASYNC (retorna Promise) — deve ser AGUARDADO antes de
-    // qualquer chamada a authenticate(). Executado fora da zona do Angular
-    // para que erros XHR internos do SDK não subam pelo Zone.js.
+    // Executado fora da zona do Angular para que erros XHR internos do SDK 
+    // não subam pelo Zone.js.
     await new Promise<void>(resolve => {
-      this.ngZone.runOutsideAngular(async () => {
+      this.ngZone.runOutsideAngular(() => {
         try {
-          // window.Pi só existe dentro do Pi Browser (injetado nativamente).
-          // Fora do Pi Browser o objeto não existe → init nem é tentado.
+          // window.Pi é validado de forma limpa graças ao arquivo de definição global
           const inPiBrowser = typeof window.Pi !== 'undefined' && window.Pi !== null;
 
           if (inPiBrowser && typeof window.Pi.init === 'function') {
-            await window.Pi.init({ version: '2.0', sandbox: true });
+            // Removido o 'await' redundante para sanar o aviso do compilador
+            window.Pi.init({ version: '2.0', sandbox: true });
             window.__piSdkReady = true;
             console.log('%c[App] 🌐 Pi SDK pronto (Pi Browser confirmado via window.Pi).', 'color: #eab308; font-weight: bold;');
           } else {
@@ -59,6 +60,8 @@ export class App implements OnInit {
         }
       });
     });
+    // ─────────────────────────────────────────
+
     // ─────────────────────────────────────────
 
     // 1. Verificação de persistência bruta

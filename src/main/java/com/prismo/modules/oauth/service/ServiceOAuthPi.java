@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.prismo.logger.AppLogger;
 import com.prismo.modules.session.service.CryptoHelper;
 import com.prismo.modules.session.util.EncryptionUtils;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.Cipher;
@@ -26,6 +27,10 @@ import java.util.concurrent.ConcurrentHashMap;
 public class ServiceOAuthPi {
 
     private static final String PI_PLATFORM_ME_URL = "https://api.minepi.com/v2/me";
+
+    // Injeção da propriedade do seu application.properties
+    @Value("${app.connect.pikey}")
+    private String piApiKey;
 
     private final AppLogger    log;
     private final CryptoHelper cryptoHelper;
@@ -221,10 +226,6 @@ public class ServiceOAuthPi {
         log.controllers("Dupla criptografia OK: AES-GCM(DH) ✅  RSA-OAEP proof ✅  id_prospect={}.", idProspect);
 
         // — Camada 3: Verificação Pi Platform API (/me) —
-        // accessToken deve ser validado server-side antes de confiar em qualquer dado do usuário.
-        // Ref: Pi SDK Docs — Mistake 2: Never Sending accessToken to the Backend at Login Time
-        // Em sandbox/dev o endpoint pode retornar 401 — nesses casos usa os dados do frontend
-        // como fallback (já protegidos pelas duas camadas criptográficas).
         Map<String, Object> frontendUser = piAuthData.containsKey("user")
                 ? (Map<String, Object>) piAuthData.get("user")
                 : Map.of();
@@ -258,32 +259,33 @@ public class ServiceOAuthPi {
                 "piNetwork", true,
                 "provider",  "PI_NETWORK",
                 "dualSeal",  true,
-                "piVerified", true  // uid veio direto da Pi Platform API
+                "piVerified", true
             )
         );
     }
 
+
     // ─────────────────────────────────────────────────────────────────────────
     // UTIL: Verifica accessToken em https://api.minepi.com/v2/me
-    //       Única fonte confiável de uid/username (não pode ser forjada)
     // ─────────────────────────────────────────────────────────────────────────
     @SuppressWarnings("unchecked")
     private Map<String, Object> verifyAccessTokenWithPiPlatform(
             String accessToken,
             Map<String, Object> frontendUser
     ) {
-        // Fallback seguro: dados que o frontend enviou dentro do envelope duplamente cifrado.
-        // Já passaram pelas duas camadas criptográficas (DH + RSA), portanto são confiáveis
-        // no contexto de sandbox / desenvolvimento onde a Pi API pode estar indisponível.
         Map<String, Object> safeFallback = Map.of(
             "uid",      frontendUser.getOrDefault("uid",      "sandbox-uid-unverified"),
             "username", frontendUser.getOrDefault("username", "sandbox-user-unverified")
         );
 
         try {
+            // Ajustado conforme a especificação da Pi Network:
+            // O servidor se autentica com "Authorization: Key <sua_chave>"
+            // E o token obtido do usuário é passado no header "User-Bearer-Token"
             HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(PI_PLATFORM_ME_URL))
-                .header("Authorization", "Bearer " + accessToken)
+                .header("Authorization", "Key " + piApiKey)
+                .header("User-Bearer-Token", accessToken)
                 .GET()
                 .build();
 
@@ -297,8 +299,6 @@ public class ServiceOAuthPi {
                 return body;
             }
 
-            // 401/403 em sandbox é esperado: tokens de sandbox não são verificáveis
-            // no endpoint de produção. Usamos o fallback com aviso.
             log.warning(
                 "Pi Platform /me respondeu HTTP {} (sandbox ou token não-produção). " +
                 "Usando dados do frontend como fallback seguro.", response.statusCode()
@@ -306,7 +306,6 @@ public class ServiceOAuthPi {
             return safeFallback;
 
         } catch (Exception e) {
-            // Rede inacessível (dev local, Replit sem saída para minepi.com, etc.)
             log.warning(
                 "Pi Platform /me inacessível: {}. Usando fallback de desenvolvimento.",
                 e.getMessage()
@@ -314,6 +313,7 @@ public class ServiceOAuthPi {
             return safeFallback;
         }
     }
+
 
     // ─────────────────────────────────────────────────────────────────────────
     // UTIL: Comparação em tempo constante (evita timing attacks)
@@ -328,3 +328,4 @@ public class ServiceOAuthPi {
         return result == 0;
     }
 }
+
