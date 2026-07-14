@@ -20,7 +20,7 @@
 
       <div class="items-grid">
 
-        <!-- CARD: PLANO PREMIUM — Pagamento com Pi Network -->
+        <!-- CARD: PLANO PREMIUM — abre o sheet modal -->
         <div class="market-card premium-card" [class.premium-active]="premiumPurchaseDone">
           <div class="card-header premium-header">
             <span class="premium-tag">[PREMIUM]</span> PLANO MENSAL
@@ -38,35 +38,27 @@
               PREÇO: 1 π / MÊS
             }
           </div>
-          @if (piPaymentStatus) {
-            <p class="pi-payment-status">{{ piPaymentStatus }}</p>
-          }
           <button
             class="btn-arcade magenta"
-            [disabled]="isPurchasingPremium || premiumPurchaseDone"
-            (click)="buyPremiumWithPi()">
+            [disabled]="premiumPurchaseDone"
+            (click)="openPiSheet()">
             @if (premiumPurchaseDone) {
               ✓ PREMIUM ATIVO
-            } @else if (isPurchasingPremium) {
-              PROCESSANDO...
             } @else {
-              PAGAR COM Pi π
+              VER PLANO &amp; PAGAR →
             }
           </button>
           @if (!isPiReady && !premiumPurchaseDone) {
-            <p class="pi-notice">// Requer Pi Browser para pagamento em Pi.</p>
+            <p class="pi-notice">// Requer Pi Browser para pagamento.</p>
           }
         </div>
 
         <!-- CARD: REFIL ASSISTINDO AD -->
         <div class="market-card ad-card">
           <div class="card-header">ANÚNCIO DO REPLICANTE</div>
-          <p class="item-desc">Assista a uma transmissão comercial da Corporação por 3 segundos e receba energia extra.</p>
+          <p class="item-desc">Assista a uma transmissão comercial por 3 segundos e receba energia extra.</p>
           <div class="price-tag FREE">CUSTO: 0.00 (GRÁTIS)</div>
-          <button
-            class="btn-arcade gold"
-            [disabled]="isWatchingAd"
-            (click)="watchAd()">
+          <button class="btn-arcade gold" [disabled]="isWatchingAd" (click)="watchAd()">
             {{ isWatchingAd ? 'ASSISTINDO...' : 'ASSISTIR AD (+30 MIN)' }}
           </button>
         </div>
@@ -74,7 +66,7 @@
         <!-- CARD: PACOTE STANDARD -->
         <div class="market-card">
           <div class="card-header">REFIL STANDARD</div>
-          <p class="item-desc">Injete mais tempo diretamente no buffer do terminal para escutar sem interrupções.</p>
+          <p class="item-desc">Injete mais tempo no buffer do terminal para escutar sem interrupções.</p>
           <div class="price-tag">PREÇO: $ 5.00</div>
           <button class="btn-arcade cyan" (click)="buyRefill(60)">
             COMPRAR PACOTE (+60 MIN)
@@ -84,15 +76,25 @@
         <!-- CARD: ITEM BLOQUEADO -->
         <div class="market-card locked">
           <div class="card-header">CUSTOM SKIN: NEON SKIN</div>
-          <p class="item-desc">Modificação estética para a interface do painel do console de áudio.</p>
+          <p class="item-desc">Modificação estética para a interface do console de áudio.</p>
           <div class="price-tag">BLOQUEADO NA SUA REGIÃO</div>
           <button class="btn-arcade" disabled>INDISPONÍVEL</button>
         </div>
 
       </div>
     </div>
-
   </div>
 
   <app-arcade-nav-bar></app-arcade-nav-bar>
 </div>
+
+<!-- PI PAYMENT SHEET — slide-up modal -->
+<app-pi-payment-sheet
+  [visible]="showPiSheet"
+  [isPurchasing]="isPurchasingPremium"
+  [isDone]="premiumPurchaseDone"
+  [isPiReady]="isPiReady"
+  [paymentStatus]="piPaymentStatus"
+  (onClose)="closePiSheet()"
+  (onConfirmPayment)="buyPremiumWithPi()">
+</app-pi-payment-sheet>

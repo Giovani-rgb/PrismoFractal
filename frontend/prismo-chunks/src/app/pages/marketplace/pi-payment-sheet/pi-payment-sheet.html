@@ -1,0 +1,100 @@
+<div class="sheet-backdrop"
+     [class.visible]="visible"
+     (click)="onBackdropClick($event)"
+     aria-modal="true"
+     role="dialog">
+
+  <div class="payment-sheet" [class.open]="visible">
+
+    <!-- DRAG HANDLE -->
+    <div class="sheet-handle" (click)="close()">
+      <span class="handle-bar"></span>
+    </div>
+
+    <!-- HEADER -->
+    <div class="sheet-header">
+      <div class="pi-logo-badge">
+        <span class="pi-symbol">π</span>
+        <span class="pi-net-label">PI NETWORK</span>
+      </div>
+      <button class="btn-close-sheet" (click)="close()" [disabled]="isPurchasing"
+              aria-label="Fechar">✕</button>
+    </div>
+
+    <!-- PLAN HERO -->
+    <div class="plan-hero">
+      <div class="plan-tag">ASSINATURA</div>
+      <h2 class="plan-name">{{ planName }}</h2>
+      <p class="plan-desc">{{ planDesc }}</p>
+    </div>
+
+    <!-- BENEFITS -->
+    <ul class="benefits-list" role="list">
+      @for (benefit of benefits; track benefit.label) {
+        <li class="benefit-item">
+          <span class="benefit-icon">{{ benefit.icon }}</span>
+          <span class="benefit-label">{{ benefit.label }}</span>
+        </li>
+      }
+    </ul>
+
+    <!-- DIVIDER -->
+    <div class="sheet-divider"></div>
+
+    <!-- PRICE BOX -->
+    <div class="price-box">
+      <div class="price-label">VALOR DO PLANO</div>
+      <div class="price-value">
+        <span class="price-amount">{{ planPrice }}</span>
+        <span class="price-hint">cobrado mensalmente em Pi</span>
+      </div>
+    </div>
+
+    <!-- STATUS MESSAGE -->
+    @if (paymentStatus) {
+      <div class="payment-status-msg" [class.error]="paymentStatus.startsWith('ERRO')">
+        {{ paymentStatus }}
+      </div>
+    }
+
+    <!-- ACTIONS -->
+    <div class="sheet-actions">
+
+      @if (isDone) {
+        <div class="success-badge">
+          <span>✓</span> PLANO PREMIUM ATIVO
+        </div>
+        <button class="btn-sheet-close" (click)="close()">FECHAR</button>
+
+      } @else if (!isPiReady) {
+        <div class="no-pi-warning">
+          // Requer Pi Browser para pagamento em Pi.<br>
+          Abra o app no navegador nativo da Pi Network.
+        </div>
+        <button class="btn-sheet-close" (click)="close()">FECHAR</button>
+
+      } @else {
+        <button class="btn-pay-pi"
+                [disabled]="isPurchasing"
+                (click)="confirm()">
+          @if (isPurchasing) {
+            <span class="btn-spinner">⠋</span> PROCESSANDO TRANSAÇÃO...
+          } @else {
+            <span class="btn-pi-icon">π</span> PAGAR COM PI NETWORK
+          }
+        </button>
+
+        <button class="btn-cancel-sheet" (click)="close()" [disabled]="isPurchasing">
+          Cancelar
+        </button>
+      }
+
+    </div>
+
+    <!-- STELLAR NOTICE -->
+    <p class="stellar-notice">
+      Transação executada na rede Stellar Protocol · Pi Network
+    </p>
+
+  </div>
+</div>

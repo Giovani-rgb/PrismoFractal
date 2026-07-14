@@ -27,7 +27,8 @@
             },
             "index": "src/index.html",
             "browser": "src/main.ts",
-            "polyfills": ["zone.js"],
+            "polyfills": ["zone.js", "src/polyfills.ts"],
+            "allowedCommonJsDependencies": ["buffer", "process"],
             "tsConfig": "tsconfig.app.json",
             "inlineStyleLanguage": "scss",
             "assets": [

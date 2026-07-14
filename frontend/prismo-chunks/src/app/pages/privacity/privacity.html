@@ -1,0 +1,70 @@
+<div class="legal-page-wrapper privacy">
+
+  <div class="page-scanlines" aria-hidden="true"></div>
+
+  <!-- TOPBAR FIXA -->
+  <header class="page-topbar">
+    <div class="topbar-inner">
+      <div class="topbar-breadcrumb">
+        <span class="breadcrumb-root">PRISMO_SYS</span>
+        <span class="breadcrumb-sep"> / </span>
+        <span class="breadcrumb-current">PRIVACY_LOG</span>
+      </div>
+      <span class="topbar-version">v1.0 // JUL-2026</span>
+      <button class="btn-topbar-back" (click)="goBack()">
+        ← VOLTAR
+      </button>
+    </div>
+    <div class="topbar-accent-line"></div>
+  </header>
+
+  <!-- CONTEÚDO PRINCIPAL -->
+  <main class="page-content">
+
+    <!-- HERO -->
+    <section class="page-hero">
+      <p class="hero-sys-tag">&gt;_ LOG DE PRIVACIDADE // COMPLIANCE</p>
+      <h1 class="page-main-title">POLÍTICA DE<br>PRIVACIDADE</h1>
+      <p class="hero-subtitle">
+        Como tratamos seus dados, protegemos sua sessão e integramos<br>
+        com o ecossistema Pi Network &amp; Stellar Protocol.
+      </p>
+      <div class="hero-divider">
+        <span class="divider-line"></span>
+        <span class="divider-icon">🔒</span>
+        <span class="divider-line"></span>
+      </div>
+    </section>
+
+    <!-- SEÇÕES -->
+    <div class="sections-grid">
+      @for (section of sections; track section.id) {
+        <article class="legal-section">
+          <div class="section-accent"></div>
+          <div class="section-inner">
+            <div class="section-header">
+              <span class="section-id">[{{ section.id }}]</span>
+              <h2 class="section-title">{{ section.title }}</h2>
+            </div>
+            <p class="section-body">{{ section.body }}</p>
+          </div>
+        </article>
+      }
+    </div>
+
+    <!-- FOOTER DO DOCUMENTO -->
+    <footer class="doc-footer">
+      <div class="footer-meta">
+        <span class="footer-tag">[PRIVACY_LOG]</span>
+        <span class="footer-update">ÚLTIMA ATUALIZAÇÃO: JULHO / 2026</span>
+      </div>
+      <p class="footer-ref">
+        Referências: minepi.com/privacy · stellar.org/privacy · LGPD Art. 18 · GDPR Art. 17
+      </p>
+      <button class="btn-footer-back" (click)="goBack()">
+        &gt; VOLTAR AO INÍCIO &lt;
+      </button>
+    </footer>
+
+  </main>
+</div>

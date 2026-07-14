@@ -1,0 +1,167 @@
+// ─── Design Tokens ────────────────────────────────────────────────
+$accent:      #00ff66;
+$accent-glow: rgba(0, 255, 102, 0.15);
+$white:       #ffffff;
+$soft:        rgba(255, 255, 255, 0.65);
+$muted:       rgba(255, 255, 255, 0.28);
+$bg:          #08090c;
+$border:      rgba(0, 255, 102, 0.14);
+$font-px:     'Press Start 2P', cursive;
+$topbar-h:    52px;
+
+.legal-page-wrapper {
+  min-height: 100vh;
+  background: $bg;
+  color: $white;
+  position: relative;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.page-scanlines {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom, transparent 0px, transparent 3px,
+    rgba(0, 0, 0, 0.18) 3px, rgba(0, 0, 0, 0.18) 4px
+  );
+}
+
+.page-topbar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  background: rgba($bg, 0.95); backdrop-filter: blur(12px);
+
+  .topbar-inner {
+    display: flex; align-items: center; gap: 12px;
+    height: $topbar-h; padding: 0 20px;
+    @media (min-width: 768px) { padding: 0 40px; }
+  }
+
+  .topbar-breadcrumb {
+    flex: 1; font-family: $font-px; font-size: 7px; letter-spacing: 0.5px;
+    .breadcrumb-root    { color: $muted; }
+    .breadcrumb-sep     { color: $muted; margin: 0 4px; }
+    .breadcrumb-current { color: $accent; }
+  }
+
+  .topbar-version {
+    font-family: $font-px; font-size: 6px; color: $muted;
+    display: none;
+    @media (min-width: 640px) { display: block; }
+  }
+
+  .btn-topbar-back {
+    font-family: $font-px; font-size: 7px;
+    background: transparent; border: 1px solid $border; color: $accent;
+    padding: 7px 12px; cursor: pointer; border-radius: 4px;
+    white-space: nowrap; transition: all 0.2s;
+    &:hover { background: $accent; color: $bg; border-color: $accent; }
+  }
+
+  .topbar-accent-line {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, $accent, rgba($accent, 0.3), transparent);
+  }
+}
+
+.page-content {
+  position: relative; z-index: 1;
+  padding-top: calc($topbar-h + 32px); padding-bottom: 64px;
+  max-width: 860px; margin: 0 auto;
+  padding-left: 20px; padding-right: 20px;
+  @media (min-width: 768px) { padding-left: 40px; padding-right: 40px; }
+}
+
+.page-hero {
+  text-align: center; padding: 40px 0 48px;
+
+  .hero-sys-tag {
+    font-family: $font-px; font-size: 7px; color: $muted;
+    letter-spacing: 1px; margin: 0 0 20px;
+  }
+
+  .page-main-title {
+    font-family: $font-px; font-size: clamp(16px, 3.5vw, 28px);
+    line-height: 1.3; color: $white;
+    text-shadow: 0 0 30px $accent-glow;
+    margin: 0 0 20px; letter-spacing: 2px;
+  }
+
+  .hero-subtitle {
+    font-size: 14px; color: $soft; line-height: 1.7;
+    max-width: 500px; margin: 0 auto 32px;
+  }
+
+  .hero-divider {
+    display: flex; align-items: center; gap: 16px; justify-content: center;
+    .divider-line {
+      flex: 1; max-width: 120px; height: 1px;
+      background: linear-gradient(90deg, transparent, $border);
+    }
+    .divider-line:last-child { background: linear-gradient(90deg, $border, transparent); }
+    .divider-icon { font-size: 18px; }
+  }
+}
+
+.sections-grid { display: flex; flex-direction: column; gap: 2px; }
+
+.legal-section {
+  display: flex; position: relative;
+  border-radius: 8px; overflow: hidden; transition: background 0.2s;
+
+  &:hover {
+    background: rgba($accent, 0.025);
+    .section-accent { opacity: 1; }
+  }
+
+  .section-accent {
+    width: 3px; flex-shrink: 0; background: $accent;
+    opacity: 0.35; transition: opacity 0.2s; border-radius: 2px 0 0 2px;
+  }
+
+  .section-inner {
+    flex: 1; padding: 20px 20px 20px 16px;
+    border-bottom: 1px solid $border;
+  }
+
+  &:last-child .section-inner { border-bottom: none; }
+
+  .section-header {
+    display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px;
+  }
+
+  .section-id {
+    font-family: $font-px; font-size: 7px; color: $accent;
+    flex-shrink: 0; text-shadow: 0 0 8px rgba($accent, 0.5);
+  }
+
+  .section-title {
+    font-family: $font-px; font-size: clamp(8px, 1.5vw, 10px);
+    color: $white; margin: 0; letter-spacing: 0.5px;
+  }
+
+  .section-body { font-size: 13px; color: $soft; line-height: 1.75; margin: 0; }
+}
+
+.doc-footer {
+  margin-top: 56px; padding: 32px 0 0;
+  border-top: 1px solid $border;
+  display: flex; flex-direction: column; align-items: center;
+  gap: 12px; text-align: center;
+
+  .footer-meta { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; justify-content: center; }
+  .footer-tag  { font-family: $font-px; font-size: 7px; color: $accent; }
+  .footer-update { font-family: $font-px; font-size: 6px; color: $muted; }
+  .footer-ref  { font-size: 11px; color: $muted; margin: 0; line-height: 1.6; }
+
+  .btn-footer-back {
+    font-family: $font-px; font-size: 8px;
+    background: transparent; border: 1px solid $border; color: $white;
+    padding: 14px 28px; cursor: pointer; border-radius: 6px;
+    margin-top: 8px; transition: all 0.2s; animation: pulse-border 2s infinite;
+    &:hover { background: $accent; color: $bg; border-color: $accent; animation: none; }
+  }
+}
+
+@keyframes pulse-border {
+  0%, 100% { border-color: $border; }
+  50%       { border-color: rgba($accent, 0.5); }
+}

@@ -1,0 +1,71 @@
+<div class="legal-page-wrapper">
+
+  <!-- Scanlines de fundo -->
+  <div class="page-scanlines" aria-hidden="true"></div>
+
+  <!-- TOPBAR FIXA -->
+  <header class="page-topbar">
+    <div class="topbar-inner">
+      <div class="topbar-breadcrumb">
+        <span class="breadcrumb-root">PRISMO_SYS</span>
+        <span class="breadcrumb-sep"> / </span>
+        <span class="breadcrumb-current">TERMS_OF_USE</span>
+      </div>
+      <span class="topbar-version">v1.0 // JUL-2026</span>
+      <button class="btn-topbar-back" (click)="goBack()">
+        ← VOLTAR
+      </button>
+    </div>
+    <div class="topbar-accent-line"></div>
+  </header>
+
+  <!-- CONTEÚDO PRINCIPAL -->
+  <main class="page-content">
+
+    <!-- HERO -->
+    <section class="page-hero">
+      <p class="hero-sys-tag">&gt;_ TERMINAL DE COMPLIANCE // DOCS</p>
+      <h1 class="page-main-title">TERMOS<br>DE USO</h1>
+      <p class="hero-subtitle">
+        Leia as diretrizes de operação antes de utilizar a plataforma.<br>
+        Ao continuar, você confirma ciência e aceite integral.
+      </p>
+      <div class="hero-divider">
+        <span class="divider-line"></span>
+        <span class="divider-icon">π</span>
+        <span class="divider-line"></span>
+      </div>
+    </section>
+
+    <!-- SEÇÕES -->
+    <div class="sections-grid">
+      @for (section of sections; track section.id) {
+        <article class="legal-section">
+          <div class="section-accent"></div>
+          <div class="section-inner">
+            <div class="section-header">
+              <span class="section-id">[{{ section.id }}]</span>
+              <h2 class="section-title">{{ section.title }}</h2>
+            </div>
+            <p class="section-body">{{ section.body }}</p>
+          </div>
+        </article>
+      }
+    </div>
+
+    <!-- FOOTER DO DOCUMENTO -->
+    <footer class="doc-footer">
+      <div class="footer-meta">
+        <span class="footer-tag">[TERMS_SYS]</span>
+        <span class="footer-update">ÚLTIMA ATUALIZAÇÃO: JULHO / 2026</span>
+      </div>
+      <p class="footer-ref">
+        Referências externas: minepi.com/terms · minepi.com/privacy · Stellar Protocol Docs
+      </p>
+      <button class="btn-footer-back" (click)="goBack()">
+        &gt; VOLTAR AO INÍCIO &lt;
+      </button>
+    </footer>
+
+  </main>
+</div>
