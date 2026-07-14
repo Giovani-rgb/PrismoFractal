@@ -1,0 +1,55 @@
+<div class="explore-arcade-wrapper">
+  <!-- Scanlines estáticas do monitor CRT -->
+  <div class="terminal-scanlines"></div>
+
+  <div class="terminal-container">
+    <!-- Header Fixo -->
+    <app-arcade-header 
+      [username]="username" 
+      [uid]="uid"
+      (onLogout)="logout()">
+    </app-arcade-header>
+
+    <h2 class="pixel-title">RETRO STREAMING TERMINAL</h2>
+
+    <!-- CASO 1: BLOQUEADO (NÃO PREMIUM) -->
+    <div class="lock-screen" *ngIf="!hasPremium">
+      <div class="lock-icon">🔒</div>
+      <h3 class="error-text">ACESSO NEGADO</h3>
+      <p class="desc-text">
+        A ESTAÇÃO DE STREAMING EXIGE ASSINATURA PREMIUM ATIVA.<br>
+        VISITE O MARKETPLACE PARA ADQUIRIR SUA CREDENCIAL DE ACESSO.
+      </p>
+      <button class="btn-arcade gold" (click)="goToMarketplace()">
+        IR PARA O MARKETPLACE >
+      </button>
+    </div>
+
+    <!-- CASO 2: CONTEÚDO LIBERADO (PREMIUM) -->
+    <div class="arcade-mainframe-core" *ngIf="hasPremium">
+      <!-- Linha laser de néon superior -->
+      <div class="mainframe-scanline-accent"></div>
+
+      <div class="timer-badge">
+        TEMPO DE REFIL: <span class="text-green-blink">{{ refillMinutes }} MIN</span>
+      </div>
+
+      <!-- Player de Áudio Retro -->
+      <div class="music-player-card">
+        <div class="album-art-placeholder">📻</div>
+        <h3 class="track-title">CHIPTUNE SYMPHONY #4</h3>
+        <p class="track-author">SINTETIZADOR CENTRAL v1.02</p>
+
+        <div class="player-controls">
+          <button class="control-btn"><<</button>
+          <button class="control-btn play-btn">PLAY</button>
+          <button class="control-btn">>></button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Barra de Navegação -->
+  <app-arcade-nav-bar></app-arcade-nav-bar>
+</div>

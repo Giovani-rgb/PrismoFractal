@@ -1,0 +1,23 @@
+<section class="arcade-fixed-nav-bar">
+  <nav class="nav-bar-menu">
+    <button class="nav-bar-item" [class.active]="currentTab === 'home'" (click)="setTab('home')">
+      <div class="icon-placeholder home-icon"></div>
+      <span>Dashboard</span>
+    </button>
+
+    <button class="nav-bar-item" [class.active]="currentTab === 'explore'" (click)="setTab('explore')">
+      <div class="icon-placeholder explore-icon"></div>
+      <span>Explore</span>
+    </button>
+
+    <button class="nav-bar-item" [class.active]="currentTab === 'marketplace'" (click)="setTab('marketplace')">
+      <div class="icon-placeholder marketplace-icon"></div>
+      <span>Marketplace</span>
+    </button>
+
+    <button class="nav-bar-item" [class.active]="currentTab === 'profile'" (click)="setTab('profile')">
+      <div class="icon-placeholder profile-icon"></div>
+      <span>Profile</span>
+    </button>
+  </nav>
+</section>

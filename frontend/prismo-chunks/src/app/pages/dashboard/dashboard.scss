@@ -1,238 +1,379 @@
-/* ================= ROOT ================= */
-.dashboard {
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
-  background: #0f1115;
-  color: #e6e6e6;
-  font-family: 'Inter', system-ui, sans-serif;
+// ─── Core Arcade Tokens ───────────────────────────────────
+$cyan:           #00e5ff;
+$magenta:        #ff0055;
+$white:          #ffffff;
+$black:          #000000;
+$pi-purple-dark: #1a1126; 
+$pi-purple-light:#523773; 
+$pi-gold:        #e29b00; 
+$border-pixel:   #495e7d; 
+$font-arcade:    'Press Start 2P', cursive;
+
+// ─── Keyframes Exclusivos do Dashboard ────────────────────
+@keyframes terminalFade {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes textPulse {
+  0%, 100% { opacity: 1; text-shadow: 0 0 10px $pi-gold; }
+  50%       { opacity: 0.6; text-shadow: 0 0 2px $pi-gold; }
+}
+@keyframes arrowBounce {
+  0%, 100% { transform: translateX(0); }
+  50%       { transform: translateX(5px); }
+}
+@keyframes indicatorBlink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.2; }
 }
 
-/* ================= HEADER ================= */
-.dashboard-header {
-  padding: 12px 20px;
-  border-bottom: 1px solid #1f222a;
-}
+// ─── Wrapper Principal do Estilo ─────────────────────────
+.dashboard-arcade-wrapper {
+  position: relative;
+  width: 100%; 
+  min-height: 100vh;
+  background: $black;
+  font-family: $font-arcade;
+  color: $white;
+  overflow-x: hidden;
+  box-sizing: border-box;
 
-.dashboard-title {
-  font-size: 1.1rem;
-  font-weight: 600;
-  margin: 0;
-}
-
-.dashboard-subtitle {
-  font-size: 0.85rem;
-  opacity: 0.65;
-  margin-top: 2px;
-}
-
-/* ================= BODY ================= */
-.dashboard-body {
-  flex: 1;
-  display: flex;
-  overflow: hidden;
-}
-
-/* ================= SIDEBAR ================= */
-.sidebar {
-  width: 280px;
-  background: #13161c;
-  border-right: 1px solid #1f222a;
-  padding: 12px;
-  overflow-y: auto;
-}
-
-/* Accordion Group */
-.sidebar-group {
-  margin-bottom: 8px;
-  border-radius: 8px;
-  background: #171a21;
-  overflow: hidden;
-}
-
-/* Toggle Button */
-.sidebar-toggle {
-  width: 100%;
-  padding: 10px 12px;
-  background: none;
-  border: none;
-  color: inherit;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  cursor: pointer;
-  font-weight: 500;
-  transition: background 0.2s ease;
-}
-
-.sidebar-toggle:hover {
-  background: #1f2330;
-}
-
-.sidebar-toggle:focus-visible {
-  outline: 2px solid #4c82ff;
-  outline-offset: -2px;
-}
-
-.chevron {
-  font-size: 0.9rem;
-  opacity: 0.7;
-}
-
-/* Accordion Content */
-.sidebar-content {
-  padding: 10px 12px;
-  border-top: 1px solid #1f222a;
-  animation: slideDown 0.2s ease;
-}
-
-/* Info Blocks */
-.info-item {
-  margin-bottom: 8px;
-}
-
-.info-item label {
-  display: block;
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  opacity: 0.6;
-}
-
-.info-item p {
-  margin: 2px 0 0;
-  font-size: 0.9rem;
-}
-
-.info-row {
-  display: flex;
-  gap: 12px;
-}
-
-.info-item.compact {
-  flex: 1;
-}
-
-/* ================= CHUNKS ================= */
-.chunks-area {
-  flex: 1;
-  display: flex;
-  width: 250px;
-  flex-direction: column;
-  background: #0f1115;
-}
-
-/* Chunks Header */
-.chunks-header {
-  padding: 12px 16px;
-  border-bottom: 1px solid #1f222a;
-}
-
-.chunks-header h3 {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 500;
-}
-
-/* Horizontal Scroll Container */
-.chunks-container {
-  flex: 1;
-  display: flex;
-  gap: 16px;
-  padding: 16px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scroll-behavior: smooth;
-}
-
-/* Individual Chunk */
-.chunk {
-  min-width: 180px;
-  max-width: 220px;
-  background: #151821;
-  border-radius: 10px;
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
-}
-
-/* Chunk Title */
-.chunk-title {
-  font-size: 0.85rem;
-  font-weight: 600;
-  margin-bottom: 8px;
-  opacity: 0.85;
-}
-
-/* Chunk Content */
-.chunk-content {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-/* ================= PHRASES ================= */
-.phrase-card {
-  padding: 8px 10px;
-  background: #1b1f2a;
-  border-radius: 6px;
-  display: flex;
-  gap: 8px;
-  align-items: flex-start;
-  cursor: grab;
-  transition: background 0.15s ease, transform 0.1s ease;
-}
-
-.phrase-card:hover {
-  background: #22273a;
-}
-
-.phrase-card:active {
-  cursor: grabbing;
-  transform: scale(0.98);
-}
-
-/* Phrase Order */
-.phrase-order {
-  font-size: 0.7rem;
-  opacity: 0.6;
-  min-width: 20px;
-}
-
-/* Phrase Text */
-.phrase-text {
-  font-size: 0.85rem;
-  line-height: 1.4;
-  opacity: 0.9;
-}
-
-/* ================= ANIMATIONS ================= */
-@keyframes slideDown {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
+  // Scanlines estáticas do monitor CRT
+  .terminal-scanlines {
+    position: fixed;
+    inset: 0;
+    z-index: 99;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      to bottom,
+      transparent 0px,
+      transparent 2px,
+      rgba(0, 0, 0, 0.25) 2px,
+      rgba(0, 0, 0, 0.25) 4px
+    );
   }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+
+  // Container Geral do Conteúdo
+  .terminal-container {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 16px;
+    padding-top: 64px; 
+    padding-bottom: 80px; 
+    gap: 16px; 
+    box-sizing: border-box;
+
+    @media (min-width: 768px) {
+      padding: 24px;
+      padding-top: 85px; 
+      padding-bottom: 90px;
+      gap: 24px; 
+    }
   }
-}
 
-/* ================= SCROLLBAR ================= */
-.chunks-container::-webkit-scrollbar {
-  height: 8px;
-}
+  // 1. HEADER FIXO
+  app-arcade-header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%; 
+    z-index: 100;
+    animation: terminalFade 0.4s ease both;
+    box-sizing: border-box;
+  }
 
-.chunks-container::-webkit-scrollbar-track {
-  background: transparent;
-}
+  // 2. CARROSSEL DE ANÚNCIOS
+  app-arcade-banner-carousel {
+    width: 100%;
+    margin-top: 4px;
+    animation: terminalFade 0.4s ease both;
+  }
 
-.chunks-container::-webkit-scrollbar-thumb {
-  background: #2a2f40;
-  border-radius: 4px;
-}
+  // 3. MENSAGEM DE BOAS-VINDAS DISCRETA
+  .discrete-welcome-anchor {
+    width: 100%;
+    padding: 10px 14px;
+    font-size: 8px;
+    color: rgba($white, 0.6);
+    border-left: 3px solid $pi-gold;
+    background: rgba($pi-purple-dark, 0.3);
+    box-sizing: border-box;
+    animation: terminalFade 0.5s ease both;
+    margin-bottom: 8px;
+  }
 
-.chunks-container::-webkit-scrollbar-thumb:hover {
-  background: #3a4160;
+  // ==========================================================
+  // ACABAMENTO PREMIUM: CONTAINER CORE COM BORDAS SUAVES E EFEITO GLOW
+  // ==========================================================
+  .arcade-mainframe-core {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    
+    // Cola o componente totalmente nas bordas esquerda e direita
+    width: calc(100% + 32px); 
+    margin-left: -16px; 
+    margin-right: -16px;
+    padding: 32px 16px;
+
+    // Gradiente sofisticado + Transparência Premium com efeito blur ao fundo
+    background: linear-gradient(180deg, rgba(#1e192c, 0.95) 0%, rgba(#261d36, 0.98) 100%);
+    backdrop-filter: blur(8px);
+    
+    // Bordas bem mais arredondadas e acabamento suave nas pontas
+    border-top: 1px solid rgba($cyan, 0.3);
+    border-bottom: 1px solid rgba($cyan, 0.3);
+    border-radius: 16px; 
+    
+    // Sombra complexa para dar profundidade de "gabinete flutuante"
+    box-shadow: 
+      0 20px 40px rgba($black, 0.8),
+      inset 0 1px 0 rgba($white, 0.05),
+      inset 0 -1px 0 rgba($black, 0.5);
+    
+    box-sizing: border-box;
+    animation: terminalFade 0.5s ease both;
+
+    @media (min-width: 768px) {
+      width: calc(100% + 48px);
+      margin-left: -24px;
+      margin-right: -24px;
+      padding: 40px 24px;
+      gap: 32px;
+      border-radius: 24px; // Desktop ganha bordas proporcionalmente mais suaves
+    }
+
+    // Linha laser de néon com degradê suavizado nas pontas
+    .mainframe-scanline-accent {
+      position: absolute;
+      top: -1px;
+      left: 5%;
+      width: 90%;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, $cyan, $magenta, $cyan, transparent);
+      box-shadow: 0 0 12px rgba($cyan, 0.8);
+    }
+
+    // Ajuste elegante das seções internas sobre o fundo limpo
+    .section-container.section-highlight {
+      background: rgba($black, 0.75) !important; 
+      border: 1px solid rgba($pi-purple-light, 0.4) !important;
+      box-shadow: 0 10px 25px rgba($black, 0.3);
+      border-radius: 12px; // Casando os cantos internos com o container pai
+      transition: border-color 0.3s ease, box-shadow 0.3s ease;
+      
+      &:hover {
+        border-color: rgba($cyan, 0.5) !important;
+        box-shadow: 0 10px 30px rgba($cyan, 0.05);
+      }
+    }
+  }
+
+  // ESTRUTURA DAS SEÇÕES INTERNAS
+  .section-container {
+    .section-pixel-title {
+      font-size: 10px;
+      color: $white;
+      letter-spacing: 1px;
+      margin-top: 0;
+      margin-bottom: 4px;
+
+      @media (min-width: 768px) {
+        font-size: 11px;
+        margin-bottom: 6px;
+      }
+    }
+
+    .section-subtitle {
+      font-size: 7px;
+      color: $pi-gold;
+      margin-bottom: 16px;
+      text-transform: uppercase;
+    }
+  }
+
+  // 4. GRID DE CARDS OPERACIONAIS (FOR YOU)
+  .arcade-selectors-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+
+    @media (min-width: 768px) {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+    }
+
+    .arcade-card {
+      background: rgba($black, 0.8);
+      border: 2px solid rgba($pi-purple-light, 0.5);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      cursor: pointer;
+      position: relative;
+      transition: all 0.25s ease;
+      border-radius: 8px; // Cantos dos cards levemente arredondados para conversar com o layout
+
+      @media (min-width: 768px) {
+        padding: 20px;
+        gap: 12px;
+      }
+
+      .card-top {
+        display: flex;
+        justify-content: space-between;
+        font-size: 6px;
+        color: rgba($white, 0.3);
+      }
+
+      .card-huge-label {
+        font-size: 10px;
+        margin: 4px 0;
+        letter-spacing: 0.5px;
+        transition: color 0.2s ease;
+      }
+
+      .card-description {
+        font-size: 7px;
+        color: rgba($white, 0.5);
+        line-height: 1.5;
+      }
+
+      .pixel-progress-bar {
+        height: 6px;
+        background: #0f0a14;
+        border: 1px solid rgba($pi-purple-light, 0.6);
+        overflow: hidden;
+        margin: 4px 0;
+        border-radius: 3px;
+
+        .progress-fill {
+          height: 100%;
+          &.cyan { background-color: $cyan; box-shadow: 0 0 8px $cyan; }
+          &.orange { background-color: $pi-gold; box-shadow: 0 0 8px $pi-gold; }
+        }
+      }
+
+      .card-action-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: auto;
+        padding-top: 12px;
+        border-top: 1px dashed rgba($pi-purple-light, 0.4);
+
+        .action-text {
+          font-size: 6px;
+          transition: color 0.2s ease;
+        }
+
+        .action-arrow {
+          font-size: 8px;
+          color: rgba($white, 0.4);
+        }
+      }
+
+      &.variant-creator {
+        .card-huge-label { color: $pi-gold; }
+        .action-text { color: $pi-gold; }
+
+        &:hover {
+          border-color: $pi-gold;
+          background: rgba($pi-purple-light, 0.2);
+          transform: translateY(-4px);
+          box-shadow: 0 0 15px rgba($pi-gold, 0.3);
+          .card-huge-label { animation: textPulse 1.5s infinite ease-in-out; }
+          .action-arrow { color: $pi-gold; animation: arrowBounce 0.6s infinite ease-in-out; }
+        }
+      }
+
+      &.variant-streaming {
+        .card-huge-label { color: $cyan; }
+        .action-text { color: $cyan; }
+
+        &:hover {
+          border-color: $cyan;
+          background: rgba($pi-purple-light, 0.2);
+          transform: translateY(-4px);
+          box-shadow: 0 0 15px rgba($cyan, 0.3);
+          .card-huge-label { text-shadow: 0 0 10px $cyan; }
+          .action-arrow { color: $cyan; animation: arrowBounce 0.6s infinite ease-in-out; }
+        }
+      }
+    }
+  }
+
+  // 5. GRID DE REDES SOCIAIS (PASSPORT)
+  .social-media-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+
+    @media (max-width: 480px) {
+      grid-template-columns: 1fr;
+    }
+
+    @media (min-width: 768px) {
+      gap: 16px;
+    }
+
+    .social-btn {
+      display: flex;
+      flex-direction: column;
+      padding: 12px;
+      border: 2px solid rgba($pi-purple-light, 0.6);
+      background: rgba($black, 0.5);
+      text-decoration: none;
+      color: $white;
+      font-size: 9px;
+      letter-spacing: 0.5px;
+      border-radius: 6px; // Suavizado os botões sociais também
+      transition: all 0.2s ease;
+
+      @media (min-width: 768px) {
+        padding: 14px;
+      }
+
+      &:hover {
+        background: rgba($pi-purple-light, 0.3);
+        border-color: $cyan;
+        box-shadow: 0 0 10px rgba($cyan, 0.2);
+        .network-name { color: $cyan; }
+      }
+
+      .network-name { transition: color 0.2s ease; }
+      .status-lbl { font-size: 6px; color: rgba($white, 0.4); margin-top: 6px; }
+    }
+  }
+
+  .social-icon {
+    font-size: 14px;
+    margin-bottom: 6px;
+    color: rgba($white, 0.7);
+  }
+
+  
+
+  // 6. NAV-BAR FIXA NO RODAPÉ
+  app-arcade-nav-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%; 
+    z-index: 90;
+  }
+
+  // Cores Utilitárias
+  .text-cyan { color: $cyan !important; }
+  .text-gold-glow { color: $pi-gold; text-shadow: 0 0 12px rgba($pi-gold, 0.6); }
+  .text-green-blink {
+    color: #00ff66 !important;
+    animation: indicatorBlink 2s step-end infinite;
+  }
 }

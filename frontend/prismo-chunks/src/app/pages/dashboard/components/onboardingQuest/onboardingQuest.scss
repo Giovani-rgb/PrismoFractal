@@ -1,0 +1,288 @@
+$cyan:           #00e5ff;
+$magenta:        #ff0055;
+$white:          #ffffff;
+$black:          #000000;
+$pi-purple-dark: #120c1a;
+$pi-purple-light:#523773;
+$pi-gold:        #e29b00;
+$green-neon:     #00ff66;
+$font-arcade:    'Press Start 2P', cursive;
+
+@keyframes block-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.quests-onboarding-wrapper {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  box-sizing: border-box;
+
+  .quests-header-block {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .section-pixel-title {
+    font-family: $font-arcade;
+    font-size: 11px;
+    margin: 0;
+    letter-spacing: 1px;
+    color: $pi-gold;
+    
+    &.text-warning-glow {
+      text-shadow: 0 0 8px rgba($pi-gold, 0.5);
+    }
+    
+    @media (min-width: 768px) {
+      font-size: 13px;
+    }
+  }
+
+  .section-subtitle {
+    font-family: $font-arcade;
+    font-size: 7px;
+    color: rgba($white, 0.4);
+    margin: 0;
+    line-height: 1.6;
+  }
+
+  // LISTA DE SELEÇÃO DE MISSÕES
+  .quests-pixel-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+
+    .quest-item {
+      position: relative;
+      background: rgba($pi-purple-dark, 0.7);
+      border: 1px solid rgba($pi-purple-light, 0.3);
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      cursor: pointer;
+      border-radius: 8px; // Suavização dos cantos das quests
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      user-select: none;
+      box-sizing: border-box;
+      overflow: hidden;
+
+      // Linha de seleção retro oculta que acende no hover
+      .quest-selector-line {
+        position: absolute;
+        left: 0;
+        top: 0;
+        height: 100%;
+        width: 0;
+        background: $pi-gold;
+        transition: width 0.2s ease;
+      }
+
+      .quest-checkbox {
+        font-family: $font-arcade;
+        font-size: 9px;
+        color: rgba($white, 0.4);
+        z-index: 2;
+        transition: color 0.2s ease;
+      }
+
+      .quest-label {
+        font-family: $font-arcade;
+        font-size: 8px;
+        color: rgba($white, 0.85);
+        line-height: 1.4;
+        z-index: 2;
+        flex: 1;
+        transition: color 0.2s ease;
+      }
+
+      .quest-status-badge {
+        font-family: $font-arcade;
+        font-size: 6px;
+        padding: 4px 6px;
+        border-radius: 4px;
+        background: rgba($white, 0.05);
+        color: rgba($white, 0.4);
+        border: 1px solid rgba($white, 0.1);
+        transition: all 0.2s ease;
+      }
+
+      // Hover interativo estilo Menu de Escolhas Premium
+      &:hover:not(.done) {
+        border-color: rgba($pi-gold, 0.6);
+        background: rgba($pi-purple-light, 0.15);
+        transform: translateX(6px);
+        box-shadow: 0 4px 15px rgba($black, 0.4);
+
+        .quest-selector-line { width: 4px; }
+        .quest-checkbox { color: $pi-gold; text-shadow: 0 0 4px $pi-gold;}
+        .quest-label { color: $white; }
+        .quest-status-badge { 
+          color: $black; 
+          background: $pi-gold; 
+          border-color: $pi-gold; 
+        }
+      }
+
+      // Estado Concluído (Verde Neon com Suavidade)
+      &.done {
+        border-color: rgba($green-neon, 0.4);
+        background: rgba($green-neon, 0.02);
+        cursor: default;
+
+        .quest-checkbox {
+          color: $green-neon;
+          text-shadow: 0 0 6px rgba($green-neon, 0.6);
+        }
+
+        .quest-label {
+          color: rgba($white, 0.35);
+          text-decoration: line-through;
+        }
+
+        .quest-status-badge {
+          color: $green-neon;
+          background: rgba($green-neon, 0.05);
+          border-color: rgba($green-neon, 0.3);
+          text-shadow: 0 0 4px rgba($green-neon, 0.3);
+        }
+      }
+    }
+  }
+
+  // FOOTER DA SEÇÃO
+  .lock-notice-footer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+    padding-top: 14px;
+    border-top: 1px dashed rgba($white, 0.1);
+
+    .footer-pulse-indicator {
+      width: 6px;
+      height: 6px;
+      background-color: $pi-gold;
+      border-radius: 50%;
+      box-shadow: 0 0 6px $pi-gold;
+      animation: block-blink 1.2s infinite;
+    }
+
+    p {
+      font-family: $font-arcade;
+      font-size: 7px;
+      color: rgba($pi-gold, 0.8);
+      margin: 0;
+      letter-spacing: 0.5px;
+      
+      &.text-blink {
+        animation: block-blink 2s step-end infinite;
+      }
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// FORM DE COLETA DE E-MAIL — expande inline abaixo da quest 2
+// ═══════════════════════════════════════════════════════════════════
+.email-form-inline {
+  margin: 0 0 4px 24px;
+  padding: 10px 12px;
+  background: rgba(0, 229, 255, 0.04);
+  border: 1px solid rgba(0, 229, 255, 0.2);
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: slideDown 0.2s ease;
+
+  .form-prompt {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 7px;
+    color: rgba(255,255,255,0.5);
+    margin: 0;
+  }
+
+  .form-input-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid rgba(0, 229, 255, 0.35);
+    border-radius: 3px;
+    padding: 6px 8px;
+    background: rgba(0,0,0,0.4);
+
+    .input-prefix {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 8px;
+      color: #00e5ff;
+      flex-shrink: 0;
+    }
+
+    .email-input-arcade {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: #ffffff;
+      font-family: system-ui, sans-serif;
+      font-size: 12px;
+      caret-color: #00e5ff;
+
+      &::placeholder { color: rgba(255,255,255,0.25); }
+    }
+  }
+
+  .form-error {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 7px;
+    color: #ff0055;
+    margin: 0;
+    text-shadow: 0 0 6px #ff0055;
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 8px;
+
+    .form-btn-confirm {
+      background: rgba(0, 229, 255, 0.12);
+      border: 1px solid #00e5ff;
+      color: #00e5ff;
+      font-family: 'Press Start 2P', monospace;
+      font-size: 7px;
+      padding: 7px 10px;
+      cursor: pointer;
+      border-radius: 3px;
+      &:hover { background: #00e5ff; color: #000; }
+    }
+
+    .form-btn-cancel {
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.15);
+      color: rgba(255,255,255,0.35);
+      font-family: 'Press Start 2P', monospace;
+      font-size: 7px;
+      padding: 7px 10px;
+      cursor: pointer;
+      border-radius: 3px;
+      &:hover { color: #fff; border-color: rgba(255,255,255,0.5); }
+    }
+  }
+
+  .form-disclaimer {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 6px;
+    color: rgba(255,255,255,0.2);
+    margin: 0;
+  }
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}

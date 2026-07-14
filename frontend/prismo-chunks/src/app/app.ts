@@ -1,5 +1,4 @@
-/// <reference path="../types/pi-network.d.ts" />
-import { Component, inject, OnInit, NgZone } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
 import { RouterOutlet, Router } from '@angular/router';
 import { Title } from '@angular/platform-browser';
 import { SessionCreationExecution } from './crowdedExecultion/sessionCreat.execultion';
@@ -9,6 +8,11 @@ import { SessionTag } from './models/session.model';
 import { SessionCacheService } from './private/session-cache.service'; 
 import { environment } from '../environments/environment';
 import { AppError, ErrorAccumulator } from './models/error.model'; 
+import{ PiSdkBase } from "../base/PiSDK.base"
+
+
+
+
 
 @Component({
   selector: 'app-root',
@@ -25,7 +29,6 @@ export class App implements OnInit {
   private cacheService = inject(SessionCacheService);
   private router = inject(Router);
   private titleService = inject(Title);
-  private ngZone = inject(NgZone);
 
   public errorTracker = new ErrorAccumulator('AppInitialization');
 
@@ -33,38 +36,14 @@ export class App implements OnInit {
     this.printPrismoBanner();
     this.titleService.setTitle(environment.appName);
 
+    try {
+      PiSdkBase.init();
+      console.log('%c[Pi SDK] 🌐 Classe base homologada e pronta para consumo.', 'color: #eab308; font-weight: bold;');
+    } catch (e: any) {
+      window.__piSdkReady = false;
+      console.warn(`[Pi SDK] ℹ️ Inicialização abortada (Ambiente fora do Pi Browser).`);
+    }
 
-    // --- INTEGRAÇÃO ECOSSISTEMA PI NETWORK ---
-    // Executado fora da zona do Angular para que erros XHR internos do SDK 
-    // não subam pelo Zone.js.
-    await new Promise<void>(resolve => {
-      this.ngZone.runOutsideAngular(() => {
-        try {
-          // window.Pi é validado de forma limpa graças ao arquivo de definição global
-          const inPiBrowser = typeof window.Pi !== 'undefined' && window.Pi !== null;
-
-          if (inPiBrowser && typeof window.Pi.init === 'function') {
-            // Removido o 'await' redundante para sanar o aviso do compilador
-            window.Pi.init({ version: '2.0', sandbox: true });
-            window.__piSdkReady = true;
-            console.log('%c[App] 🌐 Pi SDK pronto (Pi Browser confirmado via window.Pi).', 'color: #eab308; font-weight: bold;');
-          } else {
-            window.__piSdkReady = false;
-            console.warn('[App] ℹ️ window.Pi indisponível — não está no Pi Browser. authenticate() usará mock.');
-          }
-        } catch (e: any) {
-          window.__piSdkReady = false;
-          console.warn('[App] ⚠️ Pi SDK: falha no init —', e?.message ?? e);
-        } finally {
-          resolve();
-        }
-      });
-    });
-    // ─────────────────────────────────────────
-
-    // ─────────────────────────────────────────
-
-    // 1. Verificação de persistência bruta
     const hasToken = !!sessionStorage.getItem(environment.nameSessionKey);
     const state = this.context.currentState;
 
@@ -94,14 +73,9 @@ export class App implements OnInit {
       this.finalizeFlow();
     } catch (err: any) {
       console.error('[App] ❌ Falha crítica na rota de criação:', err);
-      if (err instanceof AppError) {
-        this.errorTracker.add(err);
-      } else {
-        this.errorTracker.add(new AppError(
-          err?.message || 'Falha inesperada na esteira de criação',
-          'CLIENT_ERROR', err?.status
-        ));
-      }
+      this.errorTracker.add(
+        err instanceof AppError ? err : new AppError(err?.message || 'Falha inesperada na esteira de criação', 'CLIENT_ERROR')
+      );
     }
   }
 
@@ -111,14 +85,9 @@ export class App implements OnInit {
       this.finalizeFlow();
     } catch (err: any) {
       console.error('[App] ❌ Falha na reidratação...', err);
-      if (err instanceof AppError) {
-        this.errorTracker.add(err);
-      } else {
-        this.errorTracker.add(new AppError(
-          err?.message || 'Falha crítica ao reidratar cache da sessão',
-          'NETWORK_ERROR', err?.status
-        ));
-      }
+      this.errorTracker.add(
+        err instanceof AppError ? err : new AppError(err?.message || 'Falha crítica ao reidratar cache da sessão', 'NETWORK_ERROR')
+      );
     }
   }
 
@@ -127,17 +96,12 @@ export class App implements OnInit {
 
     if (state.data && (state.tag === SessionTag.REST || state.tag === SessionTag.OFFLINE)) {
       console.log(`%c[App] ✨ Estado de Repouso Alcançado: ${state.tag}`, 'color: #6366f1; font-weight: bold;');
-      console.dir(state);
-
+      
       const vaultKey = environment.vaultPassword;
       if (vaultKey) {
         this.cacheService.saveCurrentContextToVault(vaultKey);
       } else {
-        console.warn('[App] ⚠️ Senha do Vault não encontrada no arquivo environment.');
-      }
-
-      if (state.use_pwa_styles) {
-        console.log('%c[App] 📱 PWA Mode: Active Styles Enabled.', 'color: #ec4899');
+        console.warn('[App] ⚠️ Senha do Vault não configurada no environment.');
       }
 
       this.checkRedirect();
@@ -164,7 +128,7 @@ export class App implements OnInit {
   private printPrismoBanner(): void {
     const label  = '  PRISMO  ';
     const engine = '  ENGINE  ';
-    const styleLabel  = 'background: #6366f1; color: white; font-weight: bold; font-size: 16px; border-radius: 4px 0 0 4px; padding: 6px 12px; font-family: monospace;';
+    const styleLabel = 'background: #6366f1; color: white; font-weight: bold; font-size: 16px; border-radius: 4px 0 0 4px; padding: 6px 12px; font-family: monospace;';
     const styleEngine = 'background: #312e81; color: #a5b4fc; font-weight: bold; font-size: 16px; border-radius: 0 4px 4px 0; padding: 6px 12px; font-family: monospace;';
     console.log('\n');
     console.log(`%c${label}%c${engine}`, styleLabel, styleEngine);

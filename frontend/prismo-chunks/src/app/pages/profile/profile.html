@@ -1,0 +1,66 @@
+<div class="profile-arcade-wrapper">
+  <div class="terminal-scanlines"></div>
+
+  <div class="terminal-container">
+    <app-arcade-header 
+      [username]="username" 
+      [uid]="uid"
+      (onLogout)="logout()">
+    </app-arcade-header>
+
+    <!-- Cartão de Identidade (Passport) -->
+    <div class="player-card">
+      <div class="avatar-box">{{ avatar }}</div>
+      <div class="player-meta">
+        <h2 class="player-name">{{ username }}</h2>
+        <span class="player-rank" [class.gold-text]="hasPremium">
+          {{ hasPremium ? 'RANK: PREMIUM RIDER' : 'RANK: NOVICE RIDER' }}
+        </span>
+        <p class="player-uid">UID: {{ uid }}</p>
+      </div>
+    </div>
+
+    <!-- Mainframe do Painel de Dados -->
+    <div class="arcade-mainframe-core">
+      <div class="mainframe-scanline-accent"></div>
+
+      <!-- SEÇÃO 1: INVENTÁRIO -->
+      <div class="inventory-section">
+        <h3 class="section-title">MEU INVENTÁRIO</h3>
+        
+        <div class="stats-row">
+          <span>TEMPO DE REFIL:</span>
+          <span class="value cyan-text">{{ currentRefill }} MINUTOS</span>
+        </div>
+        
+        <div class="stats-row">
+          <span>STATUS DE ASSINATURA:</span>
+          <span class="value" [ngClass]="hasPremium ? 'cyan-text' : 'red-text'">
+            {{ hasPremium ? 'AUTORIZADA' : 'NÃO DETECTADA' }}
+          </span>
+        </div>
+      </div>
+
+      <!-- SEÇÃO 2: CONFIGURAÇÕES INTERNAS -->
+      <div class="settings-section">
+        <h3 class="section-title">CONFIGURAÇÕES DO TERMINAL</h3>
+        
+        <div class="control-row">
+          <label>EFEITOS SONOROS (SFX)</label>
+          <input type="checkbox" checked />
+        </div>
+        
+        <div class="control-row">
+          <label>FREGUÊNCIA DO STREAMING</label>
+          <select class="arcade-select">
+            <option>CHIPTUNE 8-BIT</option>
+            <option>HI-FI RETRO</option>
+          </select>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <app-arcade-nav-bar></app-arcade-nav-bar>
+</div>

@@ -1,5 +1,5 @@
 import { Component, ElementRef, ViewChild, AfterViewInit, OnDestroy, HostListener, inject } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { RouterLink, Router } from '@angular/router'; // 1. Importado o Router aqui
 import { CommonModule } from '@angular/common';
 // Importação correta do Serviço Injectable
 import { OAuthPiConnectExecution } from '../../crowdedExecultion/oAuthPiConnect.execultion';
@@ -28,6 +28,9 @@ export class Landing implements AfterViewInit, OnDestroy {
 
   // Injeção do serviço executora do Prismo através do Angular inject()
   private oauthPiExecution = inject(OAuthPiConnectExecution);
+  
+  // 2. Injeção do Router do Angular usando inject()
+  private router = inject(Router);
 
   // --- Paleta do Nicolas para consistência com o Canvas ───
   private readonly PI_GOLD = '#e29b00';
@@ -246,6 +249,12 @@ export class Landing implements AfterViewInit, OnDestroy {
         // Executa a esteira OAuth — par RSA-OAEP gerado internamente a cada sessão
         const result = await this.oauthPiExecution.run();
         console.log('Esteira OAuth processada com sucesso:', result);
+
+        // 3. Redirecionamento configurado aqui após o sucesso
+        // Se a sua esteira retornar algum parâmetro (ex: se result.sucesso for uma condicional), ajuste aqui.
+        // Substitua 'dashboard' pela rota que você desejar deixar mapeada.
+        this.router.navigate(['/dashboard']);
+
       } catch (pipelineError) {
         console.error('Erro na execução da esteira do Prismo:', pipelineError);
       }

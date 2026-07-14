@@ -1,0 +1,78 @@
+<div class="quests-onboarding-wrapper">
+  <div class="quests-header-block">
+    <h2 class="section-pixel-title text-warning-glow">COMECE POR AQUI</h2>
+    <p class="section-subtitle">[CONCLUA AS DIRETRIZES PARA LIBERAR O ACESSO AO SETOR FOR YOU]</p>
+  </div>
+
+  <div class="quests-pixel-list">
+
+    <!-- Quest 1: Ativar conta -->
+    <div class="quest-item" [class.done]="quests?.accountActivated" (click)="executeQuestAction('activate')">
+      <div class="quest-selector-line"></div>
+      <span class="quest-checkbox">{{ quests?.accountActivated ? '[■]' : '[□]' }}</span>
+      <span class="quest-label">Ative sua Account</span>
+      <span class="quest-status-badge">{{ quests?.accountActivated ? 'SUCCESS' : 'PENDING' }}</span>
+    </div>
+
+    <!-- Quest 2: E-mail — expande form inline ao clicar -->
+    <div class="quest-item" [class.done]="isEmailDone" (click)="executeQuestAction('email')">
+      <div class="quest-selector-line"></div>
+      <span class="quest-checkbox">{{ isEmailDone ? '[■]' : '[□]' }}</span>
+      <span class="quest-label">Forneça um e-mail válido</span>
+      <span class="quest-status-badge">{{ isEmailDone ? 'SUCCESS' : 'PENDING' }}</span>
+    </div>
+
+    <!-- Form de coleta de e-mail — aparece abaixo da quest 2 -->
+    @if (showEmailForm) {
+      <div class="email-form-inline" (click)="$event.stopPropagation()">
+        <p class="form-prompt">&gt; INSIRA SEU E-MAIL PARA CONFIRMAÇÃO:</p>
+        <div class="form-input-row">
+          <span class="input-prefix">&gt;_</span>
+          <input
+            class="email-input-arcade"
+            type="email"
+            placeholder="user@dominio.com"
+            [value]="emailValue"
+            (input)="onEmailInput($event)"
+            (keyup.enter)="submitEmail()"
+            autocomplete="email"
+          />
+        </div>
+        @if (emailError) {
+          <p class="form-error">!! {{ emailError }}</p>
+        }
+        <div class="form-actions">
+          <button class="form-btn-confirm" (click)="submitEmail()">
+            [CONFIRMAR]
+          </button>
+          <button class="form-btn-cancel" (click)="cancelEmailForm()">
+            [CANCELAR]
+          </button>
+        </div>
+        <p class="form-disclaimer">// Um e-mail de confirmação será enviado após o cadastro.</p>
+      </div>
+    }
+
+    <!-- Quest 3: Perfil -->
+    <div class="quest-item" [class.done]="quests?.profileConfigured" (click)="executeQuestAction('profile')">
+      <div class="quest-selector-line"></div>
+      <span class="quest-checkbox">{{ quests?.profileConfigured ? '[■]' : '[□]' }}</span>
+      <span class="quest-label">Configure o perfil da Account</span>
+      <span class="quest-status-badge">{{ quests?.profileConfigured ? 'SUCCESS' : 'PENDING' }}</span>
+    </div>
+
+    <!-- Quest 4: Doação -->
+    <div class="quest-item" [class.done]="quests?.donationMade" (click)="executeQuestAction('donate')">
+      <div class="quest-selector-line"></div>
+      <span class="quest-checkbox">{{ quests?.donationMade ? '[■]' : '[□]' }}</span>
+      <span class="quest-label">Apoie o desenvolvedor (Faça uma doação)</span>
+      <span class="quest-status-badge">{{ quests?.donationMade ? 'DONOR' : 'SUPPORT' }}</span>
+    </div>
+
+  </div>
+
+  <div class="lock-notice-footer">
+    <div class="footer-pulse-indicator"></div>
+    <p class="text-blink">Aguardando passaporte completo abaixo...</p>
+  </div>
+</div>

@@ -28,7 +28,7 @@ public class ServiceOAuthPi {
 
     private static final String PI_PLATFORM_ME_URL = "https://api.minepi.com/v2/me";
 
-    // Injeção da propriedade do seu application.properties
+    // Mantido no contexto caso seu ecossistema precise da chave em outros fluxos
     @Value("${app.connect.pikey}")
     private String piApiKey;
 
@@ -142,11 +142,6 @@ public class ServiceOAuthPi {
 
     // =========================================================================
     // ROTA /PiOAuth — Dupla criptografia + verificação Pi Platform API (/me)
-    //
-    // Camada 1 (DH):  AES-GCM(sharedSecret) abre o envelope
-    // Camada 2 (RSA): rsaProof == storedChallenge confirma posse da private key
-    // Camada 3 (Pi):  accessToken verificado em https://api.minepi.com/v2/me
-    //                 → único uid confiável segundo a documentação oficial
     // =========================================================================
     @SuppressWarnings("unchecked")
     public Map<String, Object> processPiNetworkAuthentication(
@@ -192,7 +187,17 @@ public class ServiceOAuthPi {
             throw new RuntimeException("Verificação /PiOAuth: accessToken ausente no piAuthData.");
         }
 
-        // Log parcial do token para rastreio (prefixo 12 chars — não expõe o token completo)
+        // Inspection Box para certificar no console a chegada do token limpo
+        log.controllers("\n" +
+            "┌──────────────────────────────────────────────────────────────────┐\n" +
+            "│ 🧬 PRISMO ENGINE - INCOMING ENVELOPE INSPECTOR                   │\n" +
+            "├──────────────────────────────────────────────────────────────────┤\n" +
+            "│ RAW ACCESS TOKEN:                                                │\n" +
+            "│ {}                                                               │\n" +
+            "└──────────────────────────────────────────────────────────────────┘", 
+            accessToken
+        );
+
         String tokenPreview = accessToken.length() > 12
                 ? accessToken.substring(0, 12) + "…[" + accessToken.length() + " chars]"
                 : "[curto]";
@@ -242,7 +247,7 @@ public class ServiceOAuthPi {
         }
 
         log.controllers(
-            "Pi Platform API verificou identidade: uid={}, username={}.",
+            "Pi Platform API identidade resolvida: uid={}, username={}.",
             verifiedUid, verifiedUsername
         );
 
@@ -264,9 +269,8 @@ public class ServiceOAuthPi {
         );
     }
 
-
     // ─────────────────────────────────────────────────────────────────────────
-    // UTIL: Verifica accessToken em https://api.minepi.com/v2/me
+    // UTIL: Verifica accessToken espelhando o exemplo em TS (Authorization Bearer)
     // ─────────────────────────────────────────────────────────────────────────
     @SuppressWarnings("unchecked")
     private Map<String, Object> verifyAccessTokenWithPiPlatform(
@@ -279,13 +283,10 @@ public class ServiceOAuthPi {
         );
 
         try {
-            // Ajustado conforme a especificação da Pi Network:
-            // O servidor se autentica com "Authorization: Key <sua_chave>"
-            // E o token obtido do usuário é passado no header "User-Bearer-Token"
+            // Requisição montada com base no padrão Bearer de validação direta
             HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(PI_PLATFORM_ME_URL))
-                .header("Authorization", "Key " + piApiKey)
-                .header("User-Bearer-Token", accessToken)
+                .header("Authorization", "Bearer " + accessToken)
                 .GET()
                 .build();
 
@@ -295,13 +296,13 @@ public class ServiceOAuthPi {
 
             if (response.statusCode() == 200) {
                 Map<String, Object> body = objectMapper.readValue(response.body(), Map.class);
-                log.controllers("Pi Platform /me → 200. uid={} verificado.", body.get("uid"));
+                log.controllers("Pi Platform /me → 200 OK. uid={} verificado com sucesso.", body.get("uid"));
                 return body;
             }
 
             log.warning(
-                "Pi Platform /me respondeu HTTP {} (sandbox ou token não-produção). " +
-                "Usando dados do frontend como fallback seguro.", response.statusCode()
+                "Pi Platform /me respondeu HTTP {}. Ativando inteligência de contorno com dados do frontend.", 
+                response.statusCode()
             );
             return safeFallback;
 
@@ -313,7 +314,6 @@ public class ServiceOAuthPi {
             return safeFallback;
         }
     }
-
 
     // ─────────────────────────────────────────────────────────────────────────
     // UTIL: Comparação em tempo constante (evita timing attacks)
@@ -328,4 +328,3 @@ public class ServiceOAuthPi {
         return result == 0;
     }
 }
-

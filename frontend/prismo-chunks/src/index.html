@@ -13,36 +13,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" type="image/x-icon" href="favicon.ico">
   
+  <script src="https://sdk.minepi.com/pi-sdk.js"></script>
 </head>
 <body>
-  <script src="https://sdk.minepi.com/pi-sdk.js"></script>
+
   <app-root></app-root>
 
   <script>
-    // Handler global — suprime rejeições Axios não capturadas do Pi SDK
-    window.addEventListener('unhandledrejection', function(event) {
-      var r = event.reason;
-      if (r && (
-        r.name === 'AxiosError' ||
-        (typeof r.message === 'string' && r.message.toLowerCase().includes('network error')) ||
-        (r.config && typeof (r.config.url || r.config.baseURL) === 'string' &&
-          (r.config.url || r.config.baseURL || '').includes('minepi'))
-      )) {
-        event.preventDefault();
-        console.warn('[Pi SDK] Axios interno suprimido:', r.message || r.name);
-      }
-    });
-    // Pi.init() é chamado pelo Angular via NgZone.runOutsideAngular — não aqui
     window.__piSdkReady = false;
   </script>
 
-  <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
-  <script>
-    // Usando um listener para garantir que o Eruda só inicialize após o script carregar
-    window.addEventListener('DOMContentLoaded', function() {
-      if (typeof eruda !== 'undefined') eruda.init();
-    });
-  </script>
+  <script src="https://cdn.jsdelivr.net/npm/eruda" onload="if(typeof eruda !== 'undefined') eruda.init();"></script>
 
 </body>
 </html>

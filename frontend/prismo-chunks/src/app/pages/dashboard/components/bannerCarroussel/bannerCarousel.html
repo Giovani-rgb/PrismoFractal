@@ -1,0 +1,82 @@
+<div class="arcade-carousel-container">
+  <div class="terminal-scanlines"></div>
+
+  @if (banners && banners.length > 0) {
+    <div
+      class="carousel-active-view"
+      [ngClass]="[getAnimationClass(banners[currentIndex].tag), isSwapping ? 'slide-motion-active' : '']">
+
+      <div class="slide-layout">
+        <div class="banner-info-block">
+          <div class="banner-status-line">
+            <span class="status-blink">●</span>
+            <span class="tag-text">{{ banners[currentIndex].tag }}</span> // AUDIO_NODE
+          </div>
+          <h2 class="banner-title">{{ banners[currentIndex].title }}</h2>
+          <p class="banner-description">{{ banners[currentIndex].description }}</p>
+        </div>
+
+        <button class="banner-action-btn" (click)="onActionClick(banners[currentIndex])">
+          {{ banners[currentIndex].actionText }} <span></span>
+        </button>
+      </div>
+    </div>
+  }
+
+  <div class="carousel-indicators">
+    @for (banner of banners; track banner.id; let i = $index) {
+      <span
+        class="indicator-dot"
+        [class.active]="i === currentIndex"
+        (click)="setSlide(i)">
+        {{ i === currentIndex ? '[■]' : '[□]' }}
+      </span>
+    }
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     MODAL PREMIUM — exibido ao clicar no banner [PREMIUM]
+     position: fixed → escapa do overflow:hidden do carousel
+     ═══════════════════════════════════════════════════════════════ -->
+@if (showPremiumModal) {
+  <div class="premium-modal-backdrop" (click)="closePremiumModal()">
+    <div class="premium-modal-box" (click)="$event.stopPropagation()">
+      <div class="modal-scanlines"></div>
+
+      <div class="modal-header">
+        <span class="modal-tag">[PREMIUM]</span>
+        <span class="modal-close" (click)="closePremiumModal()">✕</span>
+      </div>
+
+      <h2 class="modal-title">PI_NET STUDIO PREMIUM</h2>
+      <p class="modal-subtitle">// DESBLOQUEIE O PROTOCOLO COMPLETO</p>
+
+      <div class="modal-benefits-list">
+        @for (benefit of premiumBenefits; track benefit.label) {
+          <div class="benefit-row">
+            <span class="benefit-icon">{{ benefit.icon }}</span>
+            <div class="benefit-content">
+              <span class="benefit-label">{{ benefit.label }}</span>
+              <span class="benefit-detail">{{ benefit.detail }}</span>
+            </div>
+          </div>
+        }
+      </div>
+
+      <div class="modal-pi-badge">
+        <span class="pi-icon">π</span>
+        <span class="pi-text">PAGAMENTO ACEITO EM PI NETWORK</span>
+      </div>
+
+      <div class="modal-actions">
+        <button class="modal-btn-subscribe" (click)="goToSubscribe()">
+          ASSINAR AGORA &gt;&gt;
+        </button>
+        <button class="modal-btn-close" (click)="closePremiumModal()">
+          &gt; FECHAR
+        </button>
+      </div>
+    </div>
+  </div>
+}

@@ -1,0 +1,278 @@
+// ─── Core Arcade Tokens ───────────────────────────────────
+$cyan:           #00e5ff;
+$magenta:        #ff0055;
+$white:          #ffffff;
+$black:          #000000;
+$pi-purple-dark: #1a1126; 
+$pi-purple-light:#523773; 
+$pi-gold:        #e29b00; 
+$border-pixel:   #495e7d; 
+$font-arcade:    'Press Start 2P', cursive;
+
+@keyframes terminalFade {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulseLock {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 15px rgba($magenta, 0.4); }
+  50%       { transform: scale(1.02); box-shadow: 0 0 25px rgba($magenta, 0.7); }
+}
+@keyframes indicatorBlink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.2; }
+}
+
+.explore-arcade-wrapper {
+  position: relative;
+  width: 100%; 
+  min-height: 100vh;
+  background: $black;
+  font-family: $font-arcade;
+  color: $white;
+  overflow-x: hidden;
+  box-sizing: border-box;
+
+  .terminal-scanlines {
+    position: fixed;
+    inset: 0;
+    z-index: 99;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      to bottom,
+      transparent 0px,
+      transparent 2px,
+      rgba(0, 0, 0, 0.25) 2px,
+      rgba(0, 0, 0, 0.25) 4px
+    );
+  }
+
+  .terminal-container {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 16px;
+    padding-top: 80px; 
+    padding-bottom: 80px; 
+    gap: 16px; 
+    box-sizing: border-box;
+
+    @media (min-width: 768px) {
+      padding: 24px;
+      padding-top: 95px; 
+      padding-bottom: 90px;
+      gap: 24px; 
+    }
+  }
+
+  app-arcade-header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%; 
+    z-index: 100;
+    animation: terminalFade 0.4s ease both;
+  }
+
+  .pixel-title {
+    font-size: 12px;
+    color: $cyan;
+    text-shadow: 0 0 10px $cyan;
+    text-align: center;
+    margin-bottom: 8px;
+    animation: terminalFade 0.4s ease both;
+
+    @media (min-width: 768px) {
+      font-size: 14px;
+    }
+  }
+
+  // TELA DE BLOQUEIO (LOCK SCREEN)
+  .lock-screen {
+    background: rgba($black, 0.85);
+    border: 2px solid $magenta;
+    padding: 32px 20px;
+    text-align: center;
+    border-radius: 16px;
+    animation: pulseLock 2s infinite ease-in-out, terminalFade 0.5s ease both;
+    margin-top: 20px;
+
+    .lock-icon {
+      font-size: 28px;
+      margin-bottom: 16px;
+    }
+
+    .error-text {
+      color: $magenta;
+      font-size: 11px;
+      letter-spacing: 1px;
+      margin-bottom: 12px;
+    }
+
+    .desc-text {
+      color: rgba($white, 0.6);
+      font-size: 7px;
+      line-height: 1.6;
+      margin-bottom: 24px;
+    }
+  }
+
+  // MAINFRAME PREMIUM (STREAMING PLAYING)
+  .arcade-mainframe-core {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+    width: calc(100% + 32px); 
+    margin-left: -16px; 
+    margin-right: -16px;
+    padding: 32px 16px;
+    background: linear-gradient(180deg, rgba(#1e192c, 0.95) 0%, rgba(#261d36, 0.98) 100%);
+    backdrop-filter: blur(8px);
+    border-top: 1px solid rgba($cyan, 0.3);
+    border-bottom: 1px solid rgba($cyan, 0.3);
+    border-radius: 16px; 
+    box-shadow: 0 20px 40px rgba($black, 0.8);
+    box-sizing: border-box;
+    animation: terminalFade 0.5s ease both;
+
+    @media (min-width: 768px) {
+      width: calc(100% + 48px);
+      margin-left: -24px;
+      margin-right: -24px;
+      padding: 40px 24px;
+      border-radius: 24px;
+    }
+
+    .mainframe-scanline-accent {
+      position: absolute;
+      top: -1px;
+      left: 5%;
+      width: 90%;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, $cyan, $magenta, $cyan, transparent);
+      box-shadow: 0 0 12px rgba($cyan, 0.8);
+    }
+
+    .timer-badge, .premium-badge {
+      font-size: 7px;
+      padding: 8px 16px;
+      border-radius: 4px;
+      border: 1px solid;
+    }
+
+    .timer-badge {
+      border-color: $pi-gold;
+      color: $pi-gold;
+      background: rgba($pi-gold, 0.1);
+    }
+
+    .premium-badge {
+      border-color: $cyan;
+      color: $cyan;
+      background: rgba($cyan, 0.1);
+    }
+
+    // RETRO MUSIC PLAYER CARD
+    .music-player-card {
+      width: 100%;
+      max-width: 440px;
+      background: rgba($black, 0.8);
+      border: 1px solid rgba($pi-purple-light, 0.6);
+      border-radius: 12px;
+      padding: 24px;
+      box-sizing: border-box;
+      text-align: center;
+      box-shadow: 0 10px 25px rgba($black, 0.4);
+
+      .album-art-placeholder {
+        width: 90px;
+        height: 90px;
+        background: $pi-purple-dark;
+        border: 2px dashed rgba($cyan, 0.5);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 20px auto;
+        font-size: 28px;
+      }
+
+      .track-title {
+        font-size: 9px;
+        color: $white;
+        margin-bottom: 8px;
+        letter-spacing: 0.5px;
+      }
+
+      .track-author {
+        font-size: 7px;
+        color: rgba($white, 0.4);
+        margin-bottom: 24px;
+      }
+
+      .player-controls {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 20px;
+
+        .control-btn {
+          background: none;
+          border: 1px solid rgba($border-pixel, 0.5);
+          color: $white;
+          font-family: $font-arcade;
+          font-size: 7px;
+          padding: 10px;
+          border-radius: 4px;
+          cursor: pointer;
+          transition: all 0.2s;
+
+          &:hover {
+            border-color: $white;
+            background: rgba($white, 0.05);
+          }
+
+          &.play-btn {
+            border-color: $cyan;
+            color: $cyan;
+            padding: 10px 20px;
+            box-shadow: 0 0 10px rgba($cyan, 0.2);
+            &:hover {
+              background: rgba($cyan, 0.1);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  .btn-arcade.gold {
+    font-family: $font-arcade;
+    font-size: 8px;
+    padding: 12px 20px;
+    border: 2px solid $pi-gold;
+    background: $black;
+    color: $pi-gold;
+    border-radius: 6px;
+    cursor: pointer;
+    box-shadow: 0 0 10px rgba($pi-gold, 0.2);
+    transition: all 0.2s;
+
+    &:hover {
+      background: rgba($pi-gold, 0.15);
+      transform: translateY(-2px);
+    }
+  }
+
+  app-arcade-nav-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%; 
+    z-index: 90;
+  }
+}

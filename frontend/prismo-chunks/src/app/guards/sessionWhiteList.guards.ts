@@ -1,15 +1,24 @@
 import { Injectable, inject } from '@angular/core';
 import { CanActivateFn, Router, ActivatedRouteSnapshot, RouterStateSnapshot } from '@angular/router';
 import { SessionContext } from '../context/session.context';
+import { OauthContext } from '../context/oauth.context'; // 🚀 Importação do contexto de OAuth
 import { SessionPermition } from '../models/session.model';
 
 @Injectable({ providedIn: 'root' })
 export class WhitelistService {
   private readonly sessionCtx = inject(SessionContext);
+  private readonly oauthCtx   = inject(OauthContext); // 🔑 Ingestão da fonte de dados consolidada do OAuth
 
   hasPermission(targetRoute: string, targetModule: string, isPublic: boolean): boolean {
     const currentState = this.sessionCtx.currentState;
     const permition: SessionPermition | undefined = currentState?.data?.permition;
+
+    // 0. VALIDAÇÃO DO FLUXO CONCLUÍDO (DASHBOARD)
+    // Se existir a carga consolidada de dados no 'data' do OAuth, o Dashboard é liberado de imediato
+    if (this.oauthCtx.currentState.data && targetRoute === 'dashboard') {
+      console.log('%c🚀 [GUARD]%c Usuário autenticado via OAuth detectado. Acesso ao Dashboard concedido.', 'color: #10b981; font-weight: bold;', '');
+      return true;
+    }
 
     // 1. CHECAGEM MESTRE: Analisa o isolamento de sessão se o objeto existir
     const rwu = permition ? permition['rwu'] : null;
@@ -18,8 +27,6 @@ export class WhitelistService {
 
     // Se a rota for pública, liberamos direto por padrão
     if (isPublic) {
-      // Exemplo de barreira: Se a sessão for ISOLADA, você pode impedir o usuário de voltar pra Landing se quiser
-      // if (isSessionIsolated && targetRoute === '') return false;
       return true; 
     }
 

@@ -38,6 +38,8 @@ const env = {
   appName:           process.env.VITE_APP_NAME            || 'Prismo',
   appId:             process.env.VITE_APP_ID              || 'prismo-app',
   appVersion:        process.env.VITE_APP_VERSION         || '0.0.1',
+  sandbox:
+process.env.VITE_SANDBOX  === true,
   appSessionSecret:  process.env.VITE_APP_SESSION_SECRET  || '',
   apiUrl,
   sessionTimeout:    process.env.VITE_SESSION_TIMEOUT     || '1800000',

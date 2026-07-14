@@ -7,7 +7,12 @@ import { Songs } from './pages/songs/songs';
 import { Settings } from './pages/settings/settings';
 import { Landing } from './pages/landing/landing';
 import { MelodyDna } from './pages/melody-dna/melody-dna';
+
 import { Dashboard } from './pages/dashboard/dashboard';
+import { Profile } from "./pages/profile/profile";
+import { Marketplace } from "./pages/marketplace/marketplace";
+import { Explore } from "./pages/explore/explore";
+
 
 // Novas Importações Modernas
 import { Unauthorized } from './pages/unauthorized/unauthorized';
@@ -18,6 +23,9 @@ export const routes: Routes = [
   // Rotas Públicas Regulamentares (Com suporte ao Guard)
   { path: '', component: Landing, canActivate: [whitelistGuard], data: { isPublic: true } },
   { path: 'landing', component: Intro, canActivate: [whitelistGuard], data: { isPublic: true } },
+  { path: 'explore', component: Explore, canActivate: [whitelistGuard], data: { isPublic: true } },
+  { path: 'marketplace', component: Marketplace, canActivate: [whitelistGuard], data: { isPublic: true } },
+  { path: 'profile', component: Profile, canActivate: [whitelistGuard], data: { isPublic: true } },
   { path: 'privacity', component: Privacy, canActivate: [whitelistGuard], data: { isPublic: true } },
   { path: 'terms', component: Terms, canActivate: [whitelistGuard], data: { isPublic: true } },
 

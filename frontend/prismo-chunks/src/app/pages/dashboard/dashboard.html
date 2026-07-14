@@ -1,135 +1,123 @@
-<div class="dashboard">
+<div class="dashboard-arcade-wrapper">
+  <!-- Efeito CRT de Linhas de Varredura do Terminal -->
+  <div class="terminal-scanlines"></div>
 
-  <!-- HEADER -->
-  <header class="dashboard-header">
-    <h2 class="dashboard-title">Dashboard</h2>
-    <p class="dashboard-subtitle">Editor</p>
-  </header>
+  <div class="terminal-container">
+    
+    <!-- 1. HEADER FIXO NO TOPO -->
+    <app-arcade-header 
+      class="arcade-header-fixed w-full-fixed"
+      [username]="username" 
+      [uid]="uid" 
+      (onLogout)="logout()">
+    </app-arcade-header>
 
-  <!-- BODY -->
-  <div class="dashboard-body">
+    <!-- 2. NOVO CARROSSEL DE ASSINATURAS E ANÚNCIOS -->
+    <app-arcade-banner-carousel class="w-full"></app-arcade-banner-carousel>
 
-    <!-- ============ SIDEBAR ============ -->
-    <aside class="sidebar">
+    <!-- 3. MENSAGEM DE BOAS-VINDAS DISCRETA -->
+    <div class="discrete-welcome-anchor animate-fade-in">
+      <p>Bem vindo, <span class="text-gold-glow">{{ username }}</span>. Vejah o que temos preparado pra vc!</p>
+    </div>
 
-      <!-- WORLD -->
-      <section class="sidebar-group">
-        
-<button
-  class="sidebar-toggle"
-  (click)="worldOpen = !worldOpen"
->
-  🌍 Mundo
-  <span class="chevron">
-    {{ worldOpen ? '▾' : '▸' }}
-  </span>
-</button>
+    <!-- ========================================================== -->
+    <!-- NOVO CONTAINER DE DESTAQUE DE MAINFRAME OPERACIONAL         -->
+    <!-- ========================================================== -->
+    <div class="arcade-mainframe-core">
+      <div class="mainframe-scanline-accent"></div>
+      
+      <!-- 4. SECTION FOR YOU / QUESTS -->
+      <section class="section-container variant-for-you section-highlight sequential-unlock">
+        @if (hasPendingQuests) {
+          <!-- Estado Bloqueado -->
+          <app-arcade-onboarding-quests
+            [quests]="quests"
+            (onTriggerAction)="handleQuestRedirection($event)"
+            (onEmailSubmitted)="handleEmailSubmitted($event)">
+          </app-arcade-onboarding-quests>
+        } @else {
+          <!-- Estado Liberado -->
+          <div class="unlocked-content-wrapper animate-fade-in">
+            <h2 class="section-pixel-title">ForYou</h2>
+            
+            <div class="arcade-selectors-grid">
+              <!-- Feature 1: COMPOSIÇÃO / ESTÚDIO -->
+              <div (click)="navigateToCreator()" class="arcade-card variant-creator">
+                <div class="card-top">
+                  <span class="card-id">OP_01</span>
+                  <span class="card-status-text">READY</span>
+                </div>
+                <h2 class="card-huge-label">PROJECT MANAGER</h2>
+                <p class="card-description">
+                  Manipule stems, sincronize sintetizadores e gerencie pipelines ativos.
+                </p>
+                <div class="pixel-progress-bar">
+                  <div class="progress-fill cyan" style="width: 80%"></div>
+                </div>
+                <div class="card-action-bar">
+                  <span class="action-text">+ NEW PROJECT</span>
+                  <span class="action-arrow">&gt;&gt;</span>
+                </div>
+              </div>
 
-        
-        
-        <div
-          class="sidebar-content"
-          *ngIf="worldOpen"
-        >
-          <div class="info-item">
-            <label>Nome</label>
-            <p>{{ project.world.name }}</p>
-          </div>
-
-          <div class="info-item">
-            <label>Estrutura</label>
-            <p>{{ project.world.structure }}</p>
-          </div>
-
-          <div class="info-row">
-            <div class="info-item compact">
-              <label>BPM</label>
-              <p>{{ project.world.bpm }}</p>
+              <!-- Feature 2: STREAMING / PLAYER -->
+              <div (click)="navigateToStreaming()" class="arcade-card variant-streaming">
+                <div class="card-top">
+                  <span class="card-id">OP_02</span>
+                  <span class="card-status-text">READY</span>
+                </div>
+                <h2 class="card-huge-label text-cyan-glow">QUICK CREATE</h2>
+                <p class="card-description">
+                  Explore streams descentralizados de alta fidelidade sem latência.
+                </p>
+                <div class="pixel-progress-bar">
+                  <div class="progress-fill orange" style="width: 50%"></div>
+                </div>
+                <div class="card-action-bar">
+                  <span class="action-text">+ NEW IDEA</span>
+                  <span class="action-arrow">&gt;&gt;</span>
+                </div>
+              </div>
             </div>
-            <div class="info-item compact">
-              <label>Compasso</label>
-              <p>{{ project.world.timeSignature }}</p>
-            </div>
           </div>
-        </div>
-
-        
+        }
       </section>
 
-      <!-- DNA -->
-      <section class="sidebar-group">
-        <button
-  class="sidebar-toggle"
-  (click)="dnaOpen = !dnaOpen"
->
-  🧬 DNA Melódico
-  <span class="chevron">
-    {{ dnaOpen ? '▾' : '▸' }}
-  </span>
-</button>
-
-
-        <div class="sidebar-content"
-          *ngIf="dnaOpen">
-          <div class="info-item">
-            <label>Ideologia</label>
-            <p>{{ project.melodyDna.ideology }}</p>
-          </div>
-
-          <div class="info-item">
-            <label>Ritmo</label>
-            <p>{{ project.melodyDna.rhythm }}</p>
-          </div>
-
-          <div class="info-item">
-            <label>Harmonia Base</label>
-            <p>{{ project.melodyDna.harmonyBase }}</p>
-          </div>
-
-          <div class="info-item">
-            <label>Tonalidade</label>
-            <p>{{ project.melodyDna.keySignature }}</p>
-          </div>
+      <!-- 5. SECTION PASSPORT -->
+      <section class="section-container variant-passport section-highlight">
+        <h2 class="section-pixel-title">Passport</h2>
+        <p class="section-subtitle">[socialmidia]</p>
+        
+        <div class="social-media-grid">
+          <a href="https://tiktok.com" target="_blank" class="social-btn tiktok">
+            <i class="bi bi-tiktok social-icon"></i>
+            <span class="network-name">TikTok</span>
+            <span class="status-lbl">(Joined)</span>
+          </a>
+          <a href="https://instagram.com" target="_blank" class="social-btn instagram">
+            <i class="bi bi-instagram social-icon"></i>
+            <span class="network-name">Instagram</span>
+            <span class="status-lbl">(Follow)</span>
+          </a>
+          <a href="https://discord.com" target="_blank" class="social-btn discord">
+            <i class="bi bi-discord social-icon"></i>
+            <span class="network-name">Discord</span>
+            <span class="status-lbl">(Enter)</span>
+          </a>
+          <a href="https://youtube.com" target="_blank" class="social-btn youtube">
+            <i class="bi bi-youtube social-icon"></i>
+            <span class="network-name">YouTube</span>
+            <span class="status-lbl">(Watch)</span>
+          </a>
         </div>
       </section>
+    </div>
+    <!-- ========================================================== -->
 
-    </aside>
-
-    <!-- ============ CHUNKS AREA ============ -->
-    <main class="chunks-area">
-
-      <header class="chunks-header">
-        <h3>🎵 Chunks</h3>
-      </header>
-
-      <div class="chunks-container">
-
-        <div
-          *ngFor="let stanza of stanzas"
-          class="chunk"
-        >
-          <h4 class="chunk-title">
-            Estrofe {{ stanza }}
-          </h4>
-
-          <div class="chunk-content">
-            <div
-              *ngFor="let phrase of getPhrasesForStanza(stanza)"
-              class="phrase-card"
-            >
-              <span class="phrase-order">
-                {{ phrase.order }}
-              </span>
-              <p class="phrase-text">
-                {{ phrase.text }}
-              </p>
-            </div>
-          </div>
-        </div>
-
-      </div>
-
-    </main>
+    <!-- 6. NAV-BAR FIXA NO RODAPÉ -->
+    <app-arcade-nav-bar
+      class="arcade-footer-fixed">
+    </app-arcade-nav-bar>
 
   </div>
 </div>

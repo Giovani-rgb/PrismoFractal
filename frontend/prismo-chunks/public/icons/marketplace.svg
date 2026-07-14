@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+  <!-- Teto Pixelado da Loja -->
+  <path d="M2 4h20v2H2zM4 6h2v2H4zm4 0h2v2H8zm4 0h2v2h-2zm4 0h2v2h-2zm4 0h2v2h-2z" opacity="0.8"/>
+  <!-- Balcão e Vitrine -->
+  <path d="M3 9h18v2H3zm1 4h16v7H4z"/>
+  <!-- Caixa Registradora / Detalhe Central -->
+  <path d="M10 15h4v2h-4z" fill="#00e5ff"/>
+</svg>

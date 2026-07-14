@@ -4,11 +4,7 @@ import { HttpInterceptorFn } from '@angular/common/http';
 import { OAuthTag } from '../models/oauth.model';
 
 import { OAuthService } from './oauth.service';
-import { oauthFlowInterceptor } from '../interceptors/oauth.interceptor';
-
-
-
-
+import { oauthFlowInterceptor, piConnectInterceptor } from '../interceptors/oauth.interceptor'; // Importando ambos do mesmo arquivo
 
 export interface OAuthPipelineRoute {
   tag: OAuthTag;
@@ -44,6 +40,29 @@ export class OAuthRouter {
       method: 'POST',
       handler: (service, payload) => service.authenticateWithPiNetwork(payload ?? {}),
       interceptor: oauthFlowInterceptor
+    }],
+
+    /**
+     * CONTRATO 3: SDK PROFILE (GET https://socialchain.app/v2/me)
+     * Mapeado para quando a aplicação chamar o Pi.connect.
+     * Retorna uma Promise resolvida pelo HttpClient.
+     */
+    [OAuthTag.SDK_PROFILE, {
+      tag: OAuthTag.SDK_PROFILE,
+      method: 'GET',
+      handler: (service) => service.getSdkProfile(),
+      interceptor: piConnectInterceptor
+    }],
+
+    /**
+     * CONTRATO 4: SDK TRACK (POST track)
+     * Rota genérica de telemetria/analytics disparada de forma assíncrona pelo SDK.
+     */
+    [OAuthTag.SDK_TRACK, {
+      tag: OAuthTag.SDK_TRACK,
+      method: 'POST',
+      handler: (service, payload) => service.trackSdkEvent(payload ?? {}),
+      interceptor: piConnectInterceptor
     }]
 
   ]);

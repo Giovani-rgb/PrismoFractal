@@ -1,0 +1,301 @@
+// ─── Core Arcade Tokens ───────────────────────────────────
+$cyan:           #00e5ff;
+$magenta:        #ff0055;
+$white:          #ffffff;
+$black:          #000000;
+$pi-purple-dark: #1a1126; 
+$pi-purple-light:#523773; 
+$pi-gold:        #e29b00; 
+$border-pixel:   #495e7d; 
+$font-arcade:    'Press Start 2P', cursive;
+
+@keyframes terminalFade {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.marketplace-arcade-wrapper {
+  position: relative;
+  width: 100%; 
+  min-height: 100vh;
+  background: $black;
+  font-family: $font-arcade;
+  color: $white;
+  overflow-x: hidden;
+  box-sizing: border-box;
+
+  .terminal-scanlines {
+    position: fixed;
+    inset: 0;
+    z-index: 99;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      to bottom,
+      transparent 0px,
+      transparent 2px,
+      rgba(0, 0, 0, 0.25) 2px,
+      rgba(0, 0, 0, 0.25) 4px
+    );
+  }
+
+  .terminal-container {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 16px;
+    padding-top: 80px; 
+    padding-bottom: 80px; 
+    gap: 16px; 
+    box-sizing: border-box;
+
+    @media (min-width: 768px) {
+      padding: 24px;
+      padding-top: 95px; 
+      padding-bottom: 90px;
+      gap: 24px; 
+    }
+  }
+
+  app-arcade-header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%; 
+    z-index: 100;
+    animation: terminalFade 0.4s ease both;
+  }
+
+  .pixel-title {
+    font-size: 12px;
+    color: $pi-gold;
+    text-shadow: 0 0 10px $pi-gold;
+    text-align: center;
+    margin-bottom: 4px;
+    animation: terminalFade 0.4s ease both;
+  }
+
+  .subtitle {
+    font-size: 6px;
+    color: rgba($white, 0.5);
+    text-align: center;
+    margin-bottom: 16px;
+    text-transform: uppercase;
+  }
+
+  .local-balance-badge {
+    font-size: 7px;
+    color: $cyan;
+    border: 1px dashed rgba($cyan, 0.4);
+    background: rgba($pi-purple-dark, 0.4);
+    padding: 10px;
+    text-align: center;
+    max-width: 260px;
+    margin: 0 auto 8px auto;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba($black, 0.3);
+  }
+
+  // CONJUNTO CORE DO MARKETPLACE
+  .arcade-mainframe-core {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    width: calc(100% + 32px); 
+    margin-left: -16px; 
+    margin-right: -16px;
+    padding: 32px 16px;
+    background: linear-gradient(180deg, rgba(#1e192c, 0.95) 0%, rgba(#261d36, 0.98) 100%);
+    backdrop-filter: blur(8px);
+    border-top: 1px solid rgba($pi-gold, 0.3);
+    border-bottom: 1px solid rgba($pi-gold, 0.3);
+    border-radius: 16px; 
+    box-shadow: 0 20px 40px rgba($black, 0.8);
+    box-sizing: border-box;
+    animation: terminalFade 0.5s ease both;
+
+    @media (min-width: 768px) {
+      width: calc(100% + 48px);
+      margin-left: -24px;
+      margin-right: -24px;
+      padding: 40px 24px;
+      border-radius: 24px;
+    }
+
+    .mainframe-scanline-accent {
+      position: absolute;
+      top: -1px;
+      left: 5%;
+      width: 90%;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, $pi-gold, $magenta, $pi-gold, transparent);
+      box-shadow: 0 0 12px rgba($pi-gold, 0.6);
+    }
+  }
+
+  // ITEMS GRID E CARD DESIGN
+  .items-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+
+    @media (min-width: 768px) {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+    }
+  }
+
+  .market-card {
+    background: rgba($black, 0.8);
+    border: 1px solid rgba($pi-purple-light, 0.5);
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    border-radius: 12px;
+    transition: all 0.25s ease;
+    box-sizing: border-box;
+
+    .card-header {
+      font-size: 9px;
+      color: $white;
+      border-bottom: 1px dashed rgba($pi-purple-light, 0.5);
+      padding-bottom: 10px;
+      letter-spacing: 0.5px;
+    }
+
+    .item-desc {
+      font-size: 7px;
+      color: rgba($white, 0.5);
+      line-height: 1.6;
+    }
+
+    .price-tag {
+      font-size: 10px;
+      color: $cyan;
+      margin-top: auto;
+      padding: 4px 0;
+
+      &.FREE { color: $pi-gold; }
+    }
+
+    .btn-arcade {
+      width: 100%;
+      font-family: $font-arcade;
+      font-size: 7px;
+      padding: 12px;
+      border: 2px solid $border-pixel;
+      background: $black;
+      color: $white;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+
+      &:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+
+      &.cyan {
+        border-color: $cyan;
+        color: $cyan;
+        &:not(:disabled):hover {
+          background: rgba($cyan, 0.1);
+          box-shadow: 0 0 12px rgba($cyan, 0.3);
+          transform: translateY(-2px);
+        }
+      }
+
+      &.gold {
+        border-color: $pi-gold;
+        color: $pi-gold;
+        &:not(:disabled):hover {
+          background: rgba($pi-gold, 0.15);
+          box-shadow: 0 0 12px rgba($pi-gold, 0.3);
+          transform: translateY(-2px);
+        }
+      }
+    }
+
+    &.ad-card {
+      border-color: rgba($pi-purple-light, 0.8);
+    }
+
+    &.locked {
+      opacity: 0.45;
+      border-style: dashed;
+      background: rgba($black, 0.4);
+
+      .price-tag { color: rgba($white, 0.3); }
+    }
+  }
+
+  app-arcade-nav-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%; 
+    z-index: 90;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// CARD PREMIUM Pi Network
+// ═══════════════════════════════════════════════════════════════════
+.market-card.premium-card {
+  border-color: #ff0055;
+  background: linear-gradient(180deg, rgba(255,0,85,0.08) 0%, transparent 100%);
+  position: relative;
+
+  &.premium-active {
+    border-color: #00ff66;
+    background: linear-gradient(180deg, rgba(0,255,102,0.08) 0%, transparent 100%);
+  }
+
+  .premium-header {
+    color: #ff0055;
+    .premium-tag { color: #ff0055; text-shadow: 0 0 6px #ff0055; }
+  }
+
+  .premium-benefits-mini {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin: 4px 0 8px;
+    span {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 6px;
+      color: rgba(255,255,255,0.55);
+      letter-spacing: 0.3px;
+    }
+  }
+
+  .price-tag.PREMIUM { color: #ff0055; }
+
+  .pi-payment-status {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 6px;
+    color: #ffb300;
+    line-height: 1.6;
+    text-shadow: 0 0 6px rgba(255,179,0,0.5);
+    margin: 4px 0;
+  }
+
+  .btn-arcade.magenta {
+    background: rgba(255,0,85,0.1);
+    border-color: #ff0055;
+    color: #ff0055;
+    &:hover:not(:disabled) { background: #ff0055; color: #fff; }
+    &:disabled { opacity: 0.5; cursor: not-allowed; }
+  }
+
+  .pi-notice {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 6px;
+    color: rgba(255,255,255,0.25);
+    margin: 4px 0 0;
+  }
+}

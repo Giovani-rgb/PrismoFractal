@@ -8,6 +8,8 @@ export enum OAuthTag {
   REFRESH = 'REFRESH',
   UPDATE  = 'UPDATE',
   DELETE  = 'DELETE',
+  SDK_TRACK = 'SDK_TRACK',
+  SDK_PROFILE = 'SDK_PROFILE',
   OFFLINE = 'OFFLINE'
 }
 
